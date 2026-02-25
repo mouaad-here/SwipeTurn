@@ -245,7 +245,8 @@ const styles = StyleSheet.create({
         color: '#111827',
     },
     termsContainer: {
-        paddingVertical: 32,
+        paddingTop: 32,
+        paddingBottom: 64,
         alignItems: 'center',
     },
     termsText: {

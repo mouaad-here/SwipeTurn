@@ -9,30 +9,52 @@ import {
     Text,
     View
 } from 'react-native';
+import { mockOnboardingState } from './store';
 
-const PREFERENCE_OPTIONS = [
-    "Full-time Remote Job",
-    "Remote Internship",
-    "Part-time",
-    "Freelance",
-    "Contract",
-    "Side Projects",
-    "Paid Mentorship"
+const FIELD_OPTIONS = [
+    "CS / Engineering",
+    "AI / ML",
+    "Design",
+    "Data Science",
+    "DevOps",
+    "Mobile",
+    "Product",
+    "Cybersecurity"
 ];
 
-export default function PreferencesScreen() {
-    const router = useRouter();
-    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+const LOCATION_OPTIONS = [
+    "Remote Only",
+    "Morocco",
+    "France",
+    "Germany",
+    "Netherlands",
+    "UK",
+    "UAE",
+    "Anywhere"
+];
 
-    const toggleOption = (option: string) => {
-        setSelectedOptions((prev) =>
+export default function Preferences2Screen() {
+    const router = useRouter();
+    const [selectedFields, setSelectedFields] = useState<string[]>([]);
+    const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+
+    const toggleField = (option: string) => {
+        setSelectedFields((prev) =>
             prev.includes(option)
                 ? prev.filter((item) => item !== option)
                 : [...prev, option]
         );
     };
 
-    const isNextDisabled = selectedOptions.length === 0;
+    const toggleLocation = (option: string) => {
+        setSelectedLocations((prev) =>
+            prev.includes(option)
+                ? prev.filter((item) => item !== option)
+                : [...prev, option]
+        );
+    };
+
+    const isNextDisabled = selectedFields.length === 0 || selectedLocations.length === 0;
 
     return (
         <View style={styles.container}>
@@ -45,8 +67,8 @@ export default function PreferencesScreen() {
                 </Pressable>
 
                 <View style={styles.stepsContainer}>
-                    <View style={[styles.stepDot, styles.stepDotActive]} />
                     <View style={styles.stepDot} />
+                    <View style={[styles.stepDot, styles.stepDotActive]} />
                     <View style={styles.stepDot} />
                 </View>
 
@@ -55,21 +77,37 @@ export default function PreferencesScreen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-                <Text style={styles.headingLine1}>What are you</Text>
-                <Text style={styles.headingLine2}>looking for?</Text>
-
-                <Text style={styles.subtitle}>
-                    Select your preferences to personalize your Swipturn feed.
-                </Text>
-
+                {/* Section 1 */}
+                <Text style={styles.sectionHeading}>What's your field?</Text>
                 <View style={styles.chipGrid}>
-                    {PREFERENCE_OPTIONS.map((option) => {
-                        const isSelected = selectedOptions.includes(option);
+                    {FIELD_OPTIONS.map((option) => {
+                        const isSelected = selectedFields.includes(option);
                         return (
                             <Pressable
                                 key={option}
                                 style={[styles.chip, isSelected && styles.chipSelected]}
-                                onPress={() => toggleOption(option)}
+                                onPress={() => toggleField(option)}
+                            >
+                                <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                                    {isSelected ? "✓ " : ""}{option}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+
+                {/* Section 2 */}
+                <Text style={[styles.sectionHeading, { marginTop: 28 }]}>
+                    Where do you want to work?
+                </Text>
+                <View style={styles.chipGrid}>
+                    {LOCATION_OPTIONS.map((option) => {
+                        const isSelected = selectedLocations.includes(option);
+                        return (
+                            <Pressable
+                                key={option}
+                                style={[styles.chip, isSelected && styles.chipSelected]}
+                                onPress={() => toggleLocation(option)}
                             >
                                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
                                     {isSelected ? "✓ " : ""}{option}
@@ -80,16 +118,18 @@ export default function PreferencesScreen() {
                 </View>
             </ScrollView>
 
-            {/* Bottom */}
             <View style={styles.bottomArea}>
                 <Pressable
                     style={[styles.nextButton, isNextDisabled && styles.nextButtonDisabled]}
                     disabled={isNextDisabled}
-                    onPress={() => router.push('/(onboarding)/preferences-2')}
+                    onPress={() => {
+                        mockOnboardingState.selectedLocations = [...selectedLocations];
+                        router.push('/(onboarding)/preferences-3');
+                    }}
                 >
                     <Text style={styles.nextButtonText}>Next Step →</Text>
                 </Pressable>
-                <Text style={styles.stepLabel}>STEP 1 OF 3</Text>
+                <Text style={styles.stepLabel}>STEP 2 OF 3</Text>
             </View>
         </View>
     );
@@ -130,24 +170,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingBottom: 24,
     },
-    headingLine1: {
+    sectionHeading: {
         fontFamily: 'Syne_800ExtraBold',
-        fontSize: 34,
-        lineHeight: 42,
+        fontSize: 24, // Slightly smaller than screen title
         color: '#111827',
-    },
-    headingLine2: {
-        fontFamily: 'Syne_800ExtraBold',
-        fontSize: 34,
-        lineHeight: 42,
-        color: '#FF4422',
         marginBottom: 16,
-    },
-    subtitle: {
-        fontFamily: 'DMSans_400Regular',
-        fontSize: 15,
-        color: '#6B7280',
-        marginBottom: 32,
     },
     chipGrid: {
         flexDirection: 'row',

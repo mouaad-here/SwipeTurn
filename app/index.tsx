@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     },
     bottomArea: {
         paddingHorizontal: 24,
-        paddingBottom: 48,
+        paddingBottom: 64,
         gap: 16,
     },
     getStartedButton: {
