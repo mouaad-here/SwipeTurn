@@ -44,7 +44,7 @@ export default function Preferences3Screen() {
 
     useEffect(() => {
         // Check if the user selected any EU/UK locations in the mock store
-        const euUkLocations = ["France", "Germany", "Netherlands", "UK"];
+        const euUkLocations = ["France", "Germany", "Netherlands", "UK", "Anywhere"];
         const needsVisaSection = mockOnboardingState.selectedLocations.some(
             loc => euUkLocations.includes(loc)
         );
@@ -85,7 +85,7 @@ export default function Preferences3Screen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} bounces={false}>
                 {/* Section 1 */}
                 <Text style={styles.sectionHeading}>What's your experience level?</Text>
                 <View style={styles.experienceGrid}>

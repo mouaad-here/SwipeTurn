@@ -76,7 +76,7 @@ export default function Preferences2Screen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} bounces={false}>
                 {/* Section 1 */}
                 <Text style={styles.sectionHeading}>What's your field?</Text>
                 <View style={styles.chipGrid}>
