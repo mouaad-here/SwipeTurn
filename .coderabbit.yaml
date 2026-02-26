@@ -1,0 +1,19 @@
+# .coderabbit.yaml
+# Configuration file for CodeRabbit AI Pull Request reviews
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "software_engineer"
+  request_changes_workflow: false # CodeRabbit will comment, but not block merging (best for solo/fast iteration)
+  high_level_summary: true
+  poem: false # Skip the summary poem to keep reviews professional and concise
+  review_status: true
+  collapse_walkthrough: false
+
+  auto_review:
+    enabled: true
+    drafts: false # Do not automatically review Draft PRs until they are marked ready
+
+chat:
+  auto_reply: true # Allow tagging @coderabbit in PR comments to ask questions about the code
