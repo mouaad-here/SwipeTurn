@@ -16,8 +16,8 @@ export default function WelcomeScreen() {
                 <View style={styles.circleSmall} />
 
                 <View style={styles.logoRow}>
-                    <Text style={styles.logoPrefix}>Swipt</Text>
-                    <Text style={styles.logoSuffix}>urn</Text>
+                    <Text style={styles.logoPrefix}>Swip</Text>
+                    <Text style={styles.logoSuffix}>turn</Text>
                 </View>
 
                 <Text style={styles.tagline}>Swipe. Turn your career around.</Text>

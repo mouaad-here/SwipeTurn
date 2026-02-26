@@ -9,7 +9,6 @@ import {
     Text,
     View
 } from 'react-native';
-import { mockOnboardingState } from './store';
 
 const EXPERIENCE_OPTIONS = [
     { label: "Student · 0 yr", icon: "school-outline" as const },
@@ -43,12 +42,8 @@ export default function Preferences3Screen() {
     const [showVisaOptions, setShowVisaOptions] = useState(false);
 
     useEffect(() => {
-        // Check if the user selected any EU/UK locations in the mock store
-        const euUkLocations = ["France", "Germany", "Netherlands", "UK", "Anywhere"];
-        const needsVisaSection = mockOnboardingState.selectedLocations.some(
-            loc => euUkLocations.includes(loc)
-        );
-        setShowVisaOptions(needsVisaSection);
+        // Enforce always showing the visa options for testing purposes
+        setShowVisaOptions(true);
     }, []);
 
     const toggleLanguage = (option: string) => {
@@ -163,7 +158,7 @@ export default function Preferences3Screen() {
                 <Pressable
                     style={[styles.nextButton, isNextDisabled && styles.nextButtonDisabled]}
                     disabled={isNextDisabled}
-                    onPress={() => router.replace('/(onboarding)/cv-upload')}
+                    onPress={() => router.push('/(onboarding)/cv-upload')}
                 >
                     <Text style={styles.nextButtonText}>Finish Setup →</Text>
                 </Pressable>

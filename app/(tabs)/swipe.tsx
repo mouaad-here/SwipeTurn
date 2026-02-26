@@ -8,8 +8,8 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Animated, { Extrapolation, FadeIn, interpolate, runOnJS, SlideOutLeft, SlideOutRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.5;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.15; // Decreased to make swipe much easier
 
 // --- MOCK API ---
 const api = {
@@ -46,8 +46,8 @@ Bonus points if you have experience building component libraries or working with
                             { name: 'Next.js', matched: true },
                             { name: 'TypeScript', matched: true },
                             { name: 'Tailwind CSS', matched: true },
-                            { name: 'Node.js', matched: false },
-                            { name: 'AWS', matched: false },
+                            { name: 'Node.js', matched: true },
+                            { name: 'AWS', matched: true },
                             { name: 'GraphQL', matched: false },
                             { name: 'Performance Optimization', matched: true },
                             { name: 'Accessibility (a11y)', matched: true }
@@ -110,16 +110,25 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
         .enabled(isTopCard)
         .onUpdate((event) => {
             translateX.value = event.translationX;
-            translateY.value = event.translationY;
+            translateY.value = event.translationY * 0.15; // smooth resistance on vertical drag
         })
         .onEnd((event) => {
-            if (Math.abs(event.translationX) > SWIPE_THRESHOLD) {
-                const direction = event.translationX > 0 ? 'right' : 'left';
-                translateX.value = withSpring(Math.sign(event.translationX) * SCREEN_WIDTH * 1.5, { velocity: event.velocityX });
+            const isFlickLeft = event.velocityX < -500;
+            const isFlickRight = event.velocityX > 500;
+            const isDragLeft = event.translationX < -SWIPE_THRESHOLD;
+            const isDragRight = event.translationX > SWIPE_THRESHOLD;
+
+            if (isFlickLeft || isDragLeft || isFlickRight || isDragRight) {
+                const direction = (isFlickRight || isDragRight) ? 'right' : 'left';
+                translateX.value = withSpring(direction === 'right' ? SCREEN_WIDTH * 1.5 : -SCREEN_WIDTH * 1.5, {
+                    velocity: event.velocityX,
+                    damping: 20,
+                    stiffness: 100,
+                });
                 runOnJS(handleSwipeEnd)(direction);
             } else {
-                translateX.value = withSpring(0);
-                translateY.value = withSpring(0);
+                translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+                translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
             }
         });
 
@@ -330,7 +339,7 @@ export default function SwipeScreen() {
                     <View style={styles.orangeCircle}>
                         <Ionicons name="swap-horizontal" size={16} color="white" />
                     </View>
-                    <Text style={styles.headerTitle}>Swipturn</Text>
+                    <Text style={styles.headerTitle}>Swip<Text style={{ color: COLORS.accentRed }}>turn</Text></Text>
                 </View>
                 <Pressable style={styles.bellButton}>
                     <Ionicons name="notifications" size={20} color={COLORS.textPrimary} />
@@ -353,28 +362,30 @@ export default function SwipeScreen() {
                         })}
                     </View>
                 )}
+
+                {/* Swipe Instructions Overlay */}
+                {feed.length > 0 && !loading && (
+                    <Animated.View style={styles.instructionRow} entering={FadeIn.delay(600)}>
+                        <View style={styles.instructionSide}>
+                            <View style={[styles.instructionIconBox, { backgroundColor: COLORS.surface2 }]}>
+                                <Ionicons name="close" size={16} color={COLORS.textMuted} />
+                            </View>
+                            <Text style={styles.instructionText}>Swipe left to <Text style={styles.instructionTextBold}>Pass</Text></Text>
+                        </View>
+
+                        <View style={styles.instructionDot} />
+
+                        <View style={styles.instructionSide}>
+                            <Text style={styles.instructionText}>Swipe right to <Text style={[styles.instructionTextBold, { color: COLORS.accentGreen }]}>Save</Text></Text>
+                            <View style={[styles.instructionIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                                <Ionicons name="heart" size={16} color={COLORS.accentGreen} />
+                            </View>
+                        </View>
+                    </Animated.View>
+                )}
             </View>
 
-            {/* Swipe Instructions Overlay */}
-            {feed.length > 0 && !loading && (
-                <Animated.View style={styles.instructionRow} entering={FadeIn.delay(600)}>
-                    <View style={styles.instructionSide}>
-                        <View style={[styles.instructionIconBox, { backgroundColor: COLORS.surface2 }]}>
-                            <Ionicons name="close" size={16} color={COLORS.textMuted} />
-                        </View>
-                        <Text style={styles.instructionText}>Swipe left to <Text style={styles.instructionTextBold}>Pass</Text></Text>
-                    </View>
 
-                    <View style={styles.instructionDot} />
-
-                    <View style={styles.instructionSide}>
-                        <Text style={styles.instructionText}>Swipe right to <Text style={[styles.instructionTextBold, { color: COLORS.accentGreen }]}>Save</Text></Text>
-                        <View style={[styles.instructionIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                            <Ionicons name="heart" size={16} color={COLORS.accentGreen} />
-                        </View>
-                    </View>
-                </Animated.View>
-            )}
 
             {/* Bottom Sheet Modal for Job Details */}
             <BottomSheetModal
@@ -461,7 +472,7 @@ export default function SwipeScreen() {
                     </BottomSheetScrollView>
                 )}
             </BottomSheetModal>
-        </GestureHandlerRootView>
+        </GestureHandlerRootView >
     );
 }
 
@@ -470,84 +481,84 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 10 },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     orangeCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.accentRed, justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary },
+    headerTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary },
     bellButton: { padding: 8 },
-    stackContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    cardsWrapper: { width: SCREEN_WIDTH * 0.9, height: 500, marginBottom: 20 },
+    stackContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 110 },
+    cardsWrapper: { width: SCREEN_WIDTH * 0.9, height: SCREEN_HEIGHT * 0.65, marginBottom: 10 },
     card: { position: 'absolute', width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: COLORS.background },
-    cardTop: { padding: 20, flex: 1 },
+    cardTop: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 16, flex: 1 },
     companyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
     companyLogo: { width: 48, height: 48, borderRadius: 12, backgroundColor: COLORS.surface2, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    companyInitial: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary },
+    companyInitial: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary },
     companyInfo: { flex: 1 },
-    companyName: { fontSize: 16, fontWeight: 'bold', color: COLORS.textPrimary },
-    companyLocation: { fontSize: 14, color: COLORS.textMuted, marginTop: 4 },
+    companyName: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.textPrimary },
+    companyLocation: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textMuted, marginTop: 4 },
     badgeRemote: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    badgeRemoteText: { fontSize: 12, fontWeight: 'bold', color: COLORS.accentGreen },
-    jobTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 16 },
+    badgeRemoteText: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.accentGreen },
+    jobTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary, marginBottom: 16 },
     skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
     skillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
     skillChipMatched: { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: COLORS.accentGreen },
     skillChipUnmatched: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-    skillChipTextMatched: { fontSize: 12, fontWeight: 'bold', color: COLORS.accentGreen },
+    skillChipTextMatched: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.accentGreen },
     skillChipContentUnmatched: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     greyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
-    skillChipTextUnmatched: { fontSize: 12, color: COLORS.textMuted },
-    description: { fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
-    cardBottom: { padding: 20, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface },
+    skillChipTextUnmatched: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.textMuted },
+    description: { fontFamily: 'DMSans_400Regular', fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
+    cardBottom: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface },
     matchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    matchLabel: { fontSize: 14, color: COLORS.textMuted },
-    matchScore: { fontSize: 16, fontWeight: 'bold', color: COLORS.accentGreen },
-    recommendedLabel: { fontSize: 12, fontWeight: 'bold', color: COLORS.textPrimary, letterSpacing: 1 },
+    matchLabel: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.textMuted },
+    matchScore: { fontFamily: 'Syne_800ExtraBold', fontSize: 14, color: COLORS.accentGreen },
+    recommendedLabel: { fontFamily: 'Syne_800ExtraBold', fontSize: 7.5, color: COLORS.textPrimary, letterSpacing: 0.5 },
     progressTrack: { height: 8, backgroundColor: COLORS.surface2, borderRadius: 4, overflow: 'hidden' },
     progressFill: { height: '100%', backgroundColor: COLORS.accentGreen },
     indicator: { position: 'absolute', top: 40, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 4, borderRadius: 10, transform: [{ rotate: '-15deg' }] },
     indicatorLike: { right: 40, borderColor: COLORS.accentGreen },
-    indicatorTextLike: { fontSize: 32, fontWeight: 'bold', color: COLORS.accentGreen, letterSpacing: 2 },
+    indicatorTextLike: { fontFamily: 'Syne_800ExtraBold', fontSize: 32, color: COLORS.accentGreen, letterSpacing: 2 },
     indicatorPass: { left: 40, borderColor: COLORS.accentRed },
-    indicatorTextPass: { fontSize: 32, fontWeight: 'bold', color: COLORS.accentRed, letterSpacing: 2 },
-    instructionRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20, marginTop: 10, gap: 16 },
-    instructionSide: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    indicatorTextPass: { fontFamily: 'Syne_800ExtraBold', fontSize: 32, color: COLORS.accentRed, letterSpacing: 2 },
+    instructionRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20, marginTop: 10, gap: 8 },
+    instructionSide: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     instructionIconBox: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-    instructionText: { fontSize: 14, color: COLORS.textMuted },
-    instructionTextBold: { fontWeight: 'bold', color: COLORS.textPrimary },
+    instructionText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.textMuted },
+    instructionTextBold: { fontFamily: 'DMSans_500Medium', color: COLORS.textPrimary },
     instructionDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
     emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-    emptyTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, marginTop: 16 },
-    emptySubtitle: { fontSize: 16, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
+    emptyTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary, marginTop: 16 },
+    emptySubtitle: { fontFamily: 'DMSans_400Regular', fontSize: 16, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
     refreshButton: { marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: COLORS.accentRed, borderRadius: 24 },
-    refreshButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.background },
+    refreshButtonText: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.background },
     sheetScroll: {},
     sheetHeaderGroup: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
     sheetHeaderBtn: { padding: 8 },
-    sheetHeaderTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary },
+    sheetHeaderTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 18, color: COLORS.textPrimary },
     sheetCard: { paddingHorizontal: 20 },
     sheetCompanyRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
     sheetCompanyLogo: { width: 64, height: 64, borderRadius: 16, backgroundColor: COLORS.surface2, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-    sheetCompanyInitial: { fontSize: 32, fontWeight: 'bold', color: COLORS.textPrimary },
+    sheetCompanyInitial: { fontFamily: 'Syne_800ExtraBold', fontSize: 32, color: COLORS.textPrimary },
     sheetCompanyInfo: { flex: 1 },
-    sheetJobTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 4 },
-    sheetCompanyName: { fontSize: 16, color: COLORS.textMuted, marginBottom: 8 },
-    sheetLocationRow: { fontSize: 14, color: COLORS.textPrimary, marginBottom: 4 },
-    sheetSalaryRow: { fontSize: 14, color: COLORS.textPrimary, marginBottom: 8 },
+    sheetJobTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 20, color: COLORS.textPrimary, marginBottom: 4 },
+    sheetCompanyName: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.textMuted, marginBottom: 8 },
+    sheetLocationRow: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textPrimary, marginBottom: 4 },
+    sheetSalaryRow: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textPrimary, marginBottom: 8 },
     sheetPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
     sheetPill: { backgroundColor: COLORS.surface2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-    sheetPillText: { fontSize: 12, fontWeight: '600', color: COLORS.textPrimary },
-    sheetTimeText: { fontSize: 12, color: COLORS.textMuted },
+    sheetPillText: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.textPrimary },
+    sheetTimeText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.textMuted },
     sheetSaveBtn: { padding: 8, backgroundColor: COLORS.surface2, borderRadius: 20 },
     sheetTabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 20 },
     sheetTabActive: { paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: COLORS.accentRed, marginRight: 24 },
-    sheetTabTextActive: { fontSize: 16, fontWeight: 'bold', color: COLORS.accentRed },
+    sheetTabTextActive: { fontFamily: 'Syne_800ExtraBold', fontSize: 16, color: COLORS.accentRed },
     sheetTabInactive: { paddingVertical: 12, marginRight: 24 },
-    sheetTabTextInactive: { fontSize: 16, fontWeight: '600', color: COLORS.textMuted },
+    sheetTabTextInactive: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.textMuted },
     sheetDescSection: { paddingHorizontal: 20 },
-    sheetSectionTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 16 },
+    sheetSectionTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 20, color: COLORS.textPrimary, marginBottom: 16 },
     sheetDescBox: { backgroundColor: COLORS.surface, padding: 16, borderRadius: 12 },
-    sheetDescText: { fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
+    sheetDescText: { fontFamily: 'DMSans_400Regular', fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
     sheetBottomBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
     sheetMatchCircle: { alignItems: 'center', marginRight: 20 },
-    sheetMatchScore: { fontSize: 20, fontWeight: 'bold', color: COLORS.accentGreen },
-    sheetMatchLabel: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMuted, letterSpacing: 1 },
-    sheetApplyBtn: { flex: 1, backgroundColor: COLORS.accentRed, paddingVertical: 16, borderRadius: 28, alignItems: 'center' },
-    sheetApplyBtnText: { fontSize: 16, fontWeight: 'bold', color: COLORS.background }
+    sheetMatchScore: { fontFamily: 'Syne_800ExtraBold', fontSize: 20, color: COLORS.accentGreen },
+    sheetMatchLabel: { fontFamily: 'Syne_800ExtraBold', fontSize: 10, color: COLORS.textMuted, letterSpacing: 1 },
+    sheetApplyBtn: { width: '60%', marginLeft: 'auto', backgroundColor: COLORS.accentRed, paddingVertical: 16, borderRadius: 28, alignItems: 'center' },
+    sheetApplyBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.background }
 });
