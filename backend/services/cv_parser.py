@@ -58,7 +58,8 @@ async def parse_cv(cv_text: str) -> dict:
                 json={
                     "model": "google/gemini-2.5-flash",
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.1
+                    "temperature": 0.1,
+                    "response_format": { "type": "json_object" }
                 },
                 timeout=30.0
             )
