@@ -7,6 +7,7 @@ import { ActivityIndicator, Dimensions, Pressable, StyleSheet, Text, View } from
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { Extrapolation, FadeIn, interpolate, runOnJS, SlideOutLeft, SlideOutRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppStore } from '../../store/appStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.15; // Decreased to make swipe much easier
@@ -251,6 +252,8 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
 
 export default function SwipeScreen() {
     const insets = useSafeAreaInsets();
+    const saveJob = useAppStore(state => state.saveJob);
+
     const [feed, setFeed] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
@@ -298,23 +301,28 @@ export default function SwipeScreen() {
         setLoading(false);
     };
 
-    const handleSwipe = (direction: 'left' | 'right') => {
+    const handleSwipeEnd = (direction: 'left' | 'right') => {
         if (feed.length === 0) return;
 
         const topJob = feed[0];
-        setSwipeDirection(direction);
-        api.recordSwipe(topJob.id, direction);
+        setSwipeDirection(direction); // Set swipe direction for animation
+        api.recordSwipe(topJob.id, direction); // Record the swipe action
 
-        // Short timeout to let the animation play out before removing from state
+        // Let the exit animation finish, then pop the card
         setTimeout(() => {
+            if (direction === 'right') {
+                saveJob(topJob);
+                console.log('[API] Swiped right on job ' + topJob.id);
+            } else {
+                console.log('[API] Swiped left on job ' + topJob.id);
+            }
+
             setFeed((prev) => prev.slice(1));
             setSwipeDirection(null);
         }, 150);
     };
 
-    const handleSwipeEnd = (direction: 'left' | 'right') => {
-        handleSwipe(direction);
-    }
+
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
