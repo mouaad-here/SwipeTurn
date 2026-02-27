@@ -76,10 +76,23 @@ def extract_visa_info(text: str) -> dict:
 def process_jobs(raw_jobs: list[dict]) -> dict:
     """
     Deduplicates by source_id, auto-extracts skills if empty,
-    sets expires_at = now + 60 days, inserts to Supabase.
+    and publishes the enriched job object to RabbitMQ for processing.
     """
+    import pika
+    
     if not supabase:
         print("Error: Supabase client not initialized")
+        return {"new": 0, "skipped": len(raw_jobs)}
+
+    # Initialize RabbitMQ connection
+    rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+    try:
+        connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
+        channel = connection.channel()
+        # Declare the queue (makes sure it exists)
+        channel.queue_declare(queue='new_jobs_queue', durable=True)
+    except Exception as e:
+        print(f"CRITICAL: Failed to connect to RabbitMQ: {e}")
         return {"new": 0, "skipped": len(raw_jobs)}
 
     new_count = 0
@@ -92,7 +105,7 @@ def process_jobs(raw_jobs: list[dict]) -> dict:
     
     for job in raw_jobs:
         try:
-            # Check if job already exists by source_id
+            # Prevent sending jobs we already have in our database queue
             response = supabase.table('jobs').select('id').eq('source_id', job.get('source_id')).limit(1).execute()
             
             if response.data and len(response.data) > 0:
@@ -108,7 +121,7 @@ def process_jobs(raw_jobs: list[dict]) -> dict:
             full_text = f"{job.get('title', '')} {job.get('description', '')}"
             visa_info = extract_visa_info(full_text)
             
-            # Prepare payload
+            # Prepare payload for the AMQP Queue
             payload = {
                 "title": job.get('title', 'Unknown Title'),
                 "company": job.get('company', 'Unknown Company'),
@@ -133,13 +146,28 @@ def process_jobs(raw_jobs: list[dict]) -> dict:
                 "expires_at": expires_at_iso
             }
             
-            supabase.table('jobs').insert(payload).execute()
+            # Publish message to RabbitMQ instead of querying Supabase directly
+            channel.basic_publish(
+                exchange='',
+                routing_key='new_jobs_queue',
+                body=json.dumps(payload),
+                properties=pika.BasicProperties(
+                    delivery_mode=2,  # make message persistent
+                )
+            )
+            
             new_count += 1
             
         except Exception as e:
             print(f"Error processing job {job.get('source_id')}: {e}")
             skipped_count += 1
             
+    # Close the MQ connection when the batch is fully published
+    try:
+        connection.close()
+    except Exception:
+        pass
+        
     return {"new": new_count, "skipped": skipped_count}
 
 def deactivate_expired():
