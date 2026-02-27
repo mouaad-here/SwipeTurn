@@ -1,0 +1,170 @@
+import os
+import json
+import re
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")  # Using service role key ideally, or anon key if RLS allows
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    supabase = None
+    print("WARNING: Supabase URL or Key not set. DB inserts will fail.")
+
+OPEN_TO_INTL_KEYWORDS = [
+    "open to international", "worldwide", "any nationality",
+    "global candidates", "all nationalities", "international applicants",
+    "moroccan", "morocco", "north africa", "afrique du nord",
+    "mena", "maghreb", "maroc", "no visa required",
+    "remote worldwide", "100% remote"
+]
+
+VISA_SPONSORSHIP_KEYWORDS = [
+    "visa sponsorship", "sponsor work permit", "relocation package",
+    "work permit provided", "visa provided", "tier 2 sponsor",
+    "h-1b sponsor", "we sponsor", "relocation assistance"
+]
+
+SKILLS_LIST = [
+    "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust", "php", "ruby", "swift", "kotlin",
+    "react", "angular", "vue", "next.js", "nuxt", "svelte", "react native", "flutter",
+    "node.js", "express", "django", "flask", "fastapi", "spring boot", "laravel", "ruby on rails",
+    "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "cassandra", "dynamodb",
+    "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "ansible", "jenkins", "github actions",
+    "machine learning", "deep learning", "nlp", "computer vision", "tensorflow", "pytorch", "scikit-learn",
+    "data science", "data engineering", "pandas", "numpy", "spark", "hadoop",
+    "html", "css", "tailwind css", "sass", "graphql", "rest api", "grpc", "rabbitmq", "kafka",
+    "figma", "ui/ux", "product management", "agile", "scrum", "jira"
+]
+
+def extract_skills(text: str) -> list[str]:
+    """Auto-extract known tech keywords from text."""
+    if not text:
+        return []
+    
+    found_skills = set()
+    text_lower = text.lower()
+    
+    for skill in SKILLS_LIST:
+        # Use simple boundary matching to avoid matching partial words
+        pattern = r'\b' + re.escape(skill) + r'\b'
+        if re.search(pattern, text_lower):
+            found_skills.add(skill)
+            
+    return list(found_skills)
+
+def extract_visa_info(text: str) -> dict:
+    """Parse description for visa_sponsorship and open_to_intl flags."""
+    if not text:
+        return {"visa_sponsorship": False, "open_to_intl": False}
+        
+    text_lower = text.lower()
+    
+    visa_sponsorship = any(kw in text_lower for kw in VISA_SPONSORSHIP_KEYWORDS)
+    open_to_intl = any(kw in text_lower for kw in OPEN_TO_INTL_KEYWORDS)
+    
+    return {
+        "visa_sponsorship": visa_sponsorship,
+        "open_to_intl": open_to_intl
+    }
+
+def process_jobs(raw_jobs: list[dict]) -> dict:
+    """
+    Deduplicates by source_id, auto-extracts skills if empty,
+    sets expires_at = now + 60 days, inserts to Supabase.
+    """
+    if not supabase:
+        print("Error: Supabase client not initialized")
+        return {"new": 0, "skipped": len(raw_jobs)}
+
+    new_count = 0
+    skipped_count = 0
+    
+    now = datetime.utcnow()
+    expires_at = now + timedelta(days=60)
+    expires_at_iso = expires_at.isoformat()
+    scraped_at_iso = now.isoformat()
+    
+    for job in raw_jobs:
+        try:
+            # Check if job already exists by source_id
+            response = supabase.table('jobs').select('id').eq('source_id', job.get('source_id')).limit(1).execute()
+            
+            if response.data and len(response.data) > 0:
+                skipped_count += 1
+                continue
+                
+            # If skills are empty or not list, auto-extract
+            req_skills = job.get('required_skills', [])
+            if not req_skills or not isinstance(req_skills, list):
+                req_skills = extract_skills(job.get('title', '') + " " + job.get('description', ''))
+            
+            # Parse visa info from description and title
+            full_text = f"{job.get('title', '')} {job.get('description', '')}"
+            visa_info = extract_visa_info(full_text)
+            
+            # Prepare payload
+            payload = {
+                "title": job.get('title', 'Unknown Title'),
+                "company": job.get('company', 'Unknown Company'),
+                "company_logo_url": job.get('company_logo_url'),
+                "location": job.get('location'),
+                "is_remote": job.get('is_remote', False),
+                "type": job.get('type'),
+                "description": job.get('description', ''),
+                "required_skills": req_skills,
+                
+                "visa_sponsorship": job.get('visa_sponsorship', visa_info['visa_sponsorship']),
+                "open_to_intl": job.get('open_to_intl', visa_info['open_to_intl']),
+                
+                "apply_url": job.get('apply_url'),
+                "apply_email": job.get('apply_email'),
+                "apply_type": job.get('apply_type', 'url'),
+                "source": job.get('source'),
+                "source_id": job.get('source_id'),
+                "posted_at": job.get('posted_at') or scraped_at_iso,
+                "scraped_at": scraped_at_iso,
+                "is_active": True,
+                "expires_at": expires_at_iso
+            }
+            
+            supabase.table('jobs').insert(payload).execute()
+            new_count += 1
+            
+        except Exception as e:
+            print(f"Error processing job {job.get('source_id')}: {e}")
+            skipped_count += 1
+            
+    return {"new": new_count, "skipped": skipped_count}
+
+def deactivate_expired():
+    """Marks is_active = false for expired jobs"""
+    if not supabase:
+        return
+        
+    try:
+        now_iso = datetime.utcnow().isoformat()
+        response = supabase.table('jobs') \
+            .update({"is_active": False}) \
+            .lt('expires_at', now_iso) \
+            .eq('is_active', True) \
+            .execute()
+            
+        deactivated = len(response.data) if response.data else 0
+        print(f"Deactivated {deactivated} expired jobs.")
+    except Exception as e:
+        print(f"Error deactivating expired jobs: {e}")
+
+if __name__ == "__main__":
+    # Test skill extraction
+    sample = "We are looking for a Python and React developer. Must know TypeScript."
+    print("Skills:", extract_skills(sample))
+    
+    # Test visa extraction
+    sample_visa = "We offer visa sponsorship and relocation assistance for global candidates."
+    print("Visa:", extract_visa_info(sample_visa))
