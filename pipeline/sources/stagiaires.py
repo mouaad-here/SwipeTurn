@@ -40,6 +40,8 @@ def fetch_stagiaires(max_pages=5) -> list[dict]:
                 
             print(f"Found {len(items)} job entries natively on API page {page_num}.")
             
+            from bs4 import BeautifulSoup
+
             for item in items:
                 title = item.get('titre', 'Unknown Internship')
                 
@@ -53,6 +55,10 @@ def fetch_stagiaires(max_pages=5) -> list[dict]:
                 ville_obj = item.get('ville', {})
                 location = ville_obj.get('nom', 'Morocco') if ville_obj else 'Morocco'
                 
+                # Extract and clean HTML Description
+                raw_html_desc = item.get('description', '')
+                clean_desc = BeautifulSoup(raw_html_desc, "html.parser").get_text(separator=' ', strip=True) if raw_html_desc else ''
+                
                 apply_url = item.get('lien_annonce')
                 if not apply_url:
                     # Fallback URL generation if the API drops it somehow
@@ -64,7 +70,7 @@ def fetch_stagiaires(max_pages=5) -> list[dict]:
                     "location": location,
                     "is_remote": is_remote,
                     "type": "internship",
-                    "description": "",
+                    "description": clean_desc,
                     "apply_url": apply_url,
                     "source": "stagiaires",
                     "source_id": f"sta_{str(item.get('id', uuid.uuid4()))}", # Stable API ID!

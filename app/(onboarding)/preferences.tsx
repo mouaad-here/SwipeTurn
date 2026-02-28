@@ -14,8 +14,6 @@ const PREFERENCE_OPTIONS = [
     "Full-time Remote Job",
     "Remote Internship",
     "Part-time",
-    "Freelance",
-    "Contract",
     "Side Projects",
     "Paid Mentorship"
 ];

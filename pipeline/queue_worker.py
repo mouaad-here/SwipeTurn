@@ -40,7 +40,7 @@ def categorize_experience(title: str, description: str) -> str:
     if any(keyword in text for keyword in ["senior", "lead", "principal", "manager", "director", "5+ years", "5 years", "6 years", "7 years", "10 years"]):
         return "senior_lead"
         
-    # 3. Junior / Entry Level
+    # 3. Junior / Entry Level (Includes people with a few months of internship experience)
     if any(keyword in text for keyword in ["junior", "entry level", "débutant", "0-1 year", "1 year"]):
         return "junior"
         

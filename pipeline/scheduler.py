@@ -17,7 +17,6 @@ SOURCES = [
     "lever",
     "jsearch",
     "rekrute",
-    "emploi",
     "stagiaires"
 ]
 

@@ -31,7 +31,12 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Python
+__pycache__/
+*.pyc
 
 # typescript
 *.tsbuildinfo
@@ -41,3 +46,17 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Experiments
+/experiments/
+
+# Data Science & Pipeline
+*.ipynb
+*.csv
+plots/
+plots_analysis/
+plots_morocco/
+strategic_plots/
+*.pdf
+*.sqlite3
+jobs_rows.csv

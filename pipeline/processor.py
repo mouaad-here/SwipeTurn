@@ -112,35 +112,67 @@ def process_jobs(raw_jobs: list[dict]) -> dict:
                 skipped_count += 1
                 continue
                 
+            title = job.get('title', 'Unknown Title').strip()
+            company = job.get('company', 'Unknown Company').strip()
+            
+            # Heal missing or extremely short descriptions
+            raw_desc = str(job.get('description', '')).strip()
+            if not raw_desc or len(raw_desc) < 20:
+                raw_desc = f"Job opportunity for {title} at {company}. This is an active hiring position."
+            
             # If skills are empty or not list, auto-extract
             req_skills = job.get('required_skills', [])
             if not req_skills or not isinstance(req_skills, list):
-                req_skills = extract_skills(job.get('title', '') + " " + job.get('description', ''))
-            
+                req_skills = extract_skills(title + " " + raw_desc)
+            if not req_skills:
+                # Provide a generic fallback if extraction found nothing
+                req_skills = ["communication", "teamwork"]
+                
             # Parse visa info from description and title
-            full_text = f"{job.get('title', '')} {job.get('description', '')}"
+            full_text = f"{title} {raw_desc}"
             visa_info = extract_visa_info(full_text)
             
+            # Standardize Dates
+            from dateutil import parser
+            posted_at_raw = job.get('posted_at')
+            try:
+                if posted_at_raw:
+                    dt = parser.parse(str(posted_at_raw))
+                    # Ensure timezone awareness is stripped or normalized if needed, but ISO format usually handles it
+                    posted_at_iso = dt.isoformat()
+                    expires_at_iso = (dt + timedelta(days=60)).isoformat()
+                else:
+                    posted_at_iso = scraped_at_iso
+                    expires_at_iso = (datetime.utcnow() + timedelta(days=60)).isoformat()
+            except Exception:
+                posted_at_iso = scraped_at_iso
+                expires_at_iso = (datetime.utcnow() + timedelta(days=60)).isoformat()
+                
+            # Standardize Company Logo (Ensure pure string or None)
+            logo_url = job.get('company_logo_url')
+            if not logo_url or not isinstance(logo_url, str) or len(logo_url) < 5:
+                logo_url = None
+                
             # Prepare payload for the AMQP Queue
             payload = {
-                "title": job.get('title', 'Unknown Title'),
-                "company": job.get('company', 'Unknown Company'),
-                "company_logo_url": job.get('company_logo_url'),
-                "location": job.get('location'),
-                "is_remote": job.get('is_remote', False),
-                "type": job.get('type'),
-                "description": job.get('description', ''),
+                "title": title,
+                "company": company,
+                "company_logo_url": logo_url,
+                "location": job.get('location', 'Global'),
+                "is_remote": bool(job.get('is_remote', False)),
+                "type": job.get('type', 'full-time'),
+                "description": raw_desc,
                 "required_skills": req_skills,
                 
-                "visa_sponsorship": job.get('visa_sponsorship', visa_info['visa_sponsorship']),
-                "open_to_intl": job.get('open_to_intl', visa_info['open_to_intl']),
+                "visa_sponsorship": bool(job.get('visa_sponsorship', visa_info['visa_sponsorship'])),
+                "open_to_intl": bool(job.get('open_to_intl', visa_info['open_to_intl'])),
                 
-                "apply_url": job.get('apply_url'),
+                "apply_url": job.get('apply_url', ''),
                 "apply_email": job.get('apply_email'),
                 "apply_type": job.get('apply_type', 'url'),
-                "source": job.get('source'),
-                "source_id": job.get('source_id'),
-                "posted_at": job.get('posted_at') or scraped_at_iso,
+                "source": job.get('source', 'unknown'),
+                "source_id": str(job.get('source_id')),
+                "posted_at": posted_at_iso,
                 "scraped_at": scraped_at_iso,
                 "is_active": True,
                 "expires_at": expires_at_iso
