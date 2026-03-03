@@ -3,41 +3,58 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
+    ActivityIndicator,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { mockOnboardingState } from './store';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 
 const PREFERENCE_OPTIONS = [
-    "Full-time Remote Job",
-    "Remote Internship",
-    "Part-time",
-    "Side Projects",
-    "Paid Mentorship"
+    { id: 'morocco', label: 'Morocco Only 🇲🇦' },
+    { id: 'global', label: 'Global / Remote 🌍' },
+    { id: 'both', label: 'Everywhere (Both)' }
 ];
 
 export default function PreferencesScreen() {
     const router = useRouter();
-    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+    const insets = useSafeAreaInsets();
+    const { getAuthHeaders } = useAuthHeaders();
+    const [selectedOption, setSelectedOption] = useState<string | null>(
+        mockOnboardingState.geography || null
+    );
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const toggleOption = (option: string) => {
-        setSelectedOptions((prev) =>
-            prev.includes(option)
-                ? prev.filter((item) => item !== option)
-                : [...prev, option]
-        );
+    const handleNext = async () => {
+        if (!selectedOption || isSubmitting) return;
+        setIsSubmitting(true);
+        mockOnboardingState.geography = selectedOption;
+        try {
+            const headers = await getAuthHeaders();
+            const { API_URL } = await import('@/constants/api');
+            await fetch(`${API_URL}/users/preferences`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: JSON.stringify({ preferences: { ...mockOnboardingState, geography: selectedOption } }),
+            });
+        } catch (_) {}
+        router.push({
+            pathname: '/(onboarding)/preferences-2',
+            params: { geography: selectedOption }
+        });
+        setIsSubmitting(false);
     };
-
-    const isNextDisabled = selectedOptions.length === 0;
 
     return (
         <View style={styles.container}>
             <StatusBar style="dark" />
 
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </Pressable>
@@ -46,31 +63,33 @@ export default function PreferencesScreen() {
                     <View style={[styles.stepDot, styles.stepDotActive]} />
                     <View style={styles.stepDot} />
                     <View style={styles.stepDot} />
+                    <View style={styles.stepDot} />
+                    <View style={styles.stepDot} />
                 </View>
 
                 {/* Empty view for a balanced header layout matching the back arrow size */}
-                <View style={{ width: 40 }} />
+                <View style={{ width: 48 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-                <Text style={styles.headingLine1}>What are you</Text>
-                <Text style={styles.headingLine2}>looking for?</Text>
+                <Text style={styles.headingLine1}>Where do you</Text>
+                <Text style={styles.headingLine2}>want to work?</Text>
 
                 <Text style={styles.subtitle}>
-                    Select your preferences to personalize your Swipturn feed.
+                    Select your target location to help us find the perfect match.
                 </Text>
 
                 <View style={styles.chipGrid}>
                     {PREFERENCE_OPTIONS.map((option) => {
-                        const isSelected = selectedOptions.includes(option);
+                        const isSelected = selectedOption === option.id;
                         return (
                             <Pressable
-                                key={option}
-                                style={[styles.chip, isSelected && styles.chipSelected]}
-                                onPress={() => toggleOption(option)}
+                                key={option.id}
+                                style={[styles.chip, isSelected && styles.chipSelected, { width: '100%', marginBottom: 12 }]}
+                                onPress={() => setSelectedOption(option.id)}
                             >
                                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                                    {isSelected ? "✓ " : ""}{option}
+                                    {option.label}
                                 </Text>
                             </Pressable>
                         );
@@ -79,15 +98,19 @@ export default function PreferencesScreen() {
             </ScrollView>
 
             {/* Bottom */}
-            <View style={styles.bottomArea}>
+            <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
                 <Pressable
-                    style={[styles.nextButton, isNextDisabled && styles.nextButtonDisabled]}
-                    disabled={isNextDisabled}
-                    onPress={() => router.push('/(onboarding)/preferences-2')}
+                    style={[styles.nextButton, (!selectedOption || isSubmitting) && styles.nextButtonDisabled]}
+                    disabled={!selectedOption || isSubmitting}
+                    onPress={handleNext}
                 >
-                    <Text style={styles.nextButtonText}>Next Step →</Text>
+                    {isSubmitting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                        <Text style={styles.nextButtonText}>Next Step →</Text>
+                    )}
                 </Pressable>
-                <Text style={styles.stepLabel}>STEP 1 OF 3</Text>
+                <Text style={styles.stepLabel}>STEP 1 OF 5</Text>
             </View>
         </View>
     );
@@ -107,9 +130,10 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     backButton: {
-        width: 40,
-        height: 40,
+        width: 48,
+        height: 48,
         justifyContent: 'center',
+        alignItems: 'center',
     },
     stepsContainer: {
         flexDirection: 'row',
@@ -181,6 +205,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#FF4422',
         borderRadius: 50,
         paddingVertical: 18,
+        minHeight: 48,
+        justifyContent: 'center',
         alignItems: 'center',
     },
     nextButtonDisabled: {

@@ -1,9 +1,32 @@
+import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WelcomeScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const { isLoaded, isSignedIn } = useAuth();
+
+    // Don't auto-redirect signed-in users: always show welcome first so users can choose
+    // "Continue without account", "Get Started", or "Log in". Auth screens will redirect
+    // to home when appropriate.
+    // useEffect(() => {
+    //     if (isLoaded && isSignedIn) {
+    //         router.replace('/(tabs)/swipe');
+    //     }
+    // }, [isLoaded, isSignedIn]);
+
+    if (!isLoaded) {
+        return (
+            <View style={[styles.container, styles.centered]}>
+                <StatusBar style="dark" />
+                <Text style={styles.logoPrefix}>Swip</Text>
+                <Text style={styles.logoSuffix}>turn</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -24,7 +47,7 @@ export default function WelcomeScreen() {
             </View>
 
             {/* Bottom area */}
-            <View style={styles.bottomArea}>
+            <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
                 <Pressable
                     style={styles.getStartedButton}
                     onPress={() => router.push('/(auth)/signup')}
@@ -32,9 +55,16 @@ export default function WelcomeScreen() {
                     <Text style={styles.getStartedText}>Get Started</Text>
                 </Pressable>
 
+                <Pressable
+                    style={styles.continueWithoutButton}
+                    onPress={() => router.replace('/(onboarding)/preferences')}
+                >
+                    <Text style={styles.continueWithoutText}>Continue without account</Text>
+                </Pressable>
+
                 <View style={styles.loginRow}>
                     <Text style={styles.loginPrefix}>Already have an account? </Text>
-                    <Pressable onPress={() => router.push('/(auth)/login')}>
+                    <Pressable style={styles.loginLinkTouch} onPress={() => router.push('/(auth)/login')}>
                         <Text style={styles.loginLink}>Log in</Text>
                     </Pressable>
                 </View>
@@ -102,12 +132,26 @@ const styles = StyleSheet.create({
         backgroundColor: '#FF4422',
         borderRadius: 50,
         paddingVertical: 18,
+        minHeight: 48,
+        justifyContent: 'center',
         alignItems: 'center',
     },
     getStartedText: {
         fontFamily: 'DMSans_500Medium',
         fontSize: 17,
         color: 'white',
+    },
+    continueWithoutButton: {
+        paddingVertical: 14,
+        minHeight: 48,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    continueWithoutText: {
+        fontFamily: 'DMSans_500Medium',
+        fontSize: 14,
+        color: '#6B7280',
     },
     loginRow: {
         flexDirection: 'row',
@@ -123,5 +167,10 @@ const styles = StyleSheet.create({
         fontFamily: 'DMSans_500Medium',
         fontSize: 14,
         color: '#FF4422',
+    },
+    loginLinkTouch: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
+    centered: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

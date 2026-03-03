@@ -1,0 +1,32 @@
+---
+description: Always activate virtual environment before running Python in backend or pipeline
+alwaysApply: true
+---
+
+# Virtual Environment Activation
+
+When running any Python command in the **backend** or **pipeline** directories, you **MUST** activate the virtual environment first.
+
+## Locations
+- **Backend**: `backend/venv` or `backend/.venv`
+- **Pipeline**: `pipeline/venv` or `pipeline/.venv`
+
+## Commands (PowerShell on Windows)
+
+**Backend:**
+```powershell
+cd backend; .\venv\Scripts\Activate.ps1; python <script>.py
+```
+
+**Pipeline:**
+```powershell
+cd pipeline; .\venv\Scripts\Activate.ps1; python <script>.py
+```
+
+## Examples
+- Run db_analysis: `cd backend; .\venv\Scripts\Activate.ps1; python db_analysis.py`
+- Run scheduler: `cd pipeline; .\venv\Scripts\Activate.ps1; python scheduler.py`
+- Run pipeline once: `cd pipeline; .\venv\Scripts\Activate.ps1; python run_once.py`
+- pip install: Activate venv first, then run `pip install <package>`
+
+Never run `python` or `pip` in backend/ or pipeline/ without activating the venv first.

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
@@ -9,59 +9,44 @@ import {
     Text,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mockOnboardingState } from './store';
 
-const FIELD_OPTIONS = [
-    "CS / Engineering",
-    "AI / ML",
-    "Design",
-    "Data Science",
-    "DevOps",
-    "Mobile",
-    "Product",
-    "Cybersecurity"
-];
-
-const LOCATION_OPTIONS = [
-    "Remote Only",
-    "Morocco",
-    "France",
-    "Germany",
-    "Netherlands",
-    "UK",
-    "UAE",
-    "Anywhere"
+const SENIORITY_OPTIONS = [
+    { id: 'student', label: 'Student / Internship / PFE 🎓' },
+    { id: 'junior', label: 'Junior (0-2 years) 🌱' },
+    { id: 'mid', label: 'Mid-Level (3-5 years) 🚀' },
+    { id: 'senior_lead', label: 'Senior / Lead (5+ years) 👑' }
 ];
 
 export default function Preferences2Screen() {
     const router = useRouter();
-    const [selectedFields, setSelectedFields] = useState<string[]>([]);
-    const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+    const insets = useSafeAreaInsets();
+    const params = useLocalSearchParams();
+    const geography = (params.geography as string) || mockOnboardingState.geography || '';
 
-    const toggleField = (option: string) => {
-        setSelectedFields((prev) =>
-            prev.includes(option)
-                ? prev.filter((item) => item !== option)
-                : [...prev, option]
-        );
+    const [selectedSeniority, setSelectedSeniority] = useState<string | null>(
+        mockOnboardingState.seniority || null
+    );
+
+    // Filter options based on geography logic (The user wanted to handle Student globally as well, but we can customize the view)
+    const displayOptions = SENIORITY_OPTIONS;
+
+    const handleNext = () => {
+        if (!selectedSeniority) return;
+
+        mockOnboardingState.geography = geography;
+        mockOnboardingState.seniority = selectedSeniority;
+
+        router.push('/(onboarding)/preferences-3');
     };
-
-    const toggleLocation = (option: string) => {
-        setSelectedLocations((prev) =>
-            prev.includes(option)
-                ? prev.filter((item) => item !== option)
-                : [...prev, option]
-        );
-    };
-
-    const isNextDisabled = selectedFields.length === 0 || selectedLocations.length === 0;
 
     return (
         <View style={styles.container}>
             <StatusBar style="dark" />
 
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </Pressable>
@@ -70,47 +55,32 @@ export default function Preferences2Screen() {
                     <View style={styles.stepDot} />
                     <View style={[styles.stepDot, styles.stepDotActive]} />
                     <View style={styles.stepDot} />
+                    <View style={styles.stepDot} />
+                    <View style={styles.stepDot} />
                 </View>
 
                 {/* Empty view for a balanced header layout matching the back arrow size */}
-                <View style={{ width: 40 }} />
+                <View style={{ width: 48 }} />
             </View>
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} bounces={false}>
-                {/* Section 1 */}
-                <Text style={styles.sectionHeading}>What's your field?</Text>
-                <View style={styles.chipGrid}>
-                    {FIELD_OPTIONS.map((option) => {
-                        const isSelected = selectedFields.includes(option);
-                        return (
-                            <Pressable
-                                key={option}
-                                style={[styles.chip, isSelected && styles.chipSelected]}
-                                onPress={() => toggleField(option)}
-                            >
-                                <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                                    {isSelected ? "✓ " : ""}{option}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
+                <Text style={styles.sectionHeading}>What is your experience level?</Text>
 
-                {/* Section 2 */}
-                <Text style={[styles.sectionHeading, { marginTop: 28 }]}>
-                    Where do you want to work?
+                <Text style={[styles.subtitle, { marginBottom: 24, fontFamily: 'DMSans_400Regular', color: '#6B7280', fontSize: 15 }]}>
+                    This helps us filter jobs that match your exact career stage.
                 </Text>
+
                 <View style={styles.chipGrid}>
-                    {LOCATION_OPTIONS.map((option) => {
-                        const isSelected = selectedLocations.includes(option);
+                    {displayOptions.map((option) => {
+                        const isSelected = selectedSeniority === option.id;
                         return (
                             <Pressable
-                                key={option}
-                                style={[styles.chip, isSelected && styles.chipSelected]}
-                                onPress={() => toggleLocation(option)}
+                                key={option.id}
+                                style={[styles.chip, isSelected && styles.chipSelected, { width: '100%', marginBottom: 12 }]}
+                                onPress={() => setSelectedSeniority(option.id)}
                             >
                                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                                    {isSelected ? "✓ " : ""}{option}
+                                    {option.label}
                                 </Text>
                             </Pressable>
                         );
@@ -118,18 +88,15 @@ export default function Preferences2Screen() {
                 </View>
             </ScrollView>
 
-            <View style={styles.bottomArea}>
+            <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
                 <Pressable
-                    style={[styles.nextButton, isNextDisabled && styles.nextButtonDisabled]}
-                    disabled={isNextDisabled}
-                    onPress={() => {
-                        mockOnboardingState.selectedLocations = [...selectedLocations];
-                        router.push('/(onboarding)/preferences-3');
-                    }}
+                    style={[styles.nextButton, !selectedSeniority && styles.nextButtonDisabled]}
+                    disabled={!selectedSeniority}
+                    onPress={handleNext}
                 >
                     <Text style={styles.nextButtonText}>Next Step →</Text>
                 </Pressable>
-                <Text style={styles.stepLabel}>STEP 2 OF 3</Text>
+                <Text style={styles.stepLabel}>STEP 2 OF 5</Text>
             </View>
         </View>
     );
@@ -149,9 +116,10 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     backButton: {
-        width: 40,
-        height: 40,
+        width: 48,
+        height: 48,
         justifyContent: 'center',
+        alignItems: 'center',
     },
     stepsContainer: {
         flexDirection: 'row',
@@ -210,6 +178,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#FF4422',
         borderRadius: 50,
         paddingVertical: 18,
+        minHeight: 48,
+        justifyContent: 'center',
         alignItems: 'center',
     },
     nextButtonDisabled: {
@@ -227,5 +197,11 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         letterSpacing: 1.2,
         marginTop: 16,
+    },
+    subtitle: {
+        fontFamily: 'DMSans_400Regular',
+        fontSize: 15,
+        color: '#6B7280',
+        marginBottom: 32,
     },
 });

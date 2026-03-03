@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useAppStore } from '../../store/appStore';
+import * as WebBrowser from 'expo-web-browser';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 
 const COLORS = {
     background: '#F8F9FA',
@@ -17,164 +19,167 @@ const COLORS = {
     metaText: '#9CA3AF'
 };
 
+function formatTimeAgo(savedAt: string | undefined): string {
+    if (!savedAt) return 'Saved';
+    try {
+        const d = new Date(savedAt);
+        const now = new Date();
+        const diffMs = now.getTime() - d.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return d.toLocaleDateString();
+    } catch {
+        return 'Saved';
+    }
+}
 
+function displayCompany(name: string | null | undefined): string {
+    if (name == null || name === '') return 'Company';
+    const n = String(name).trim();
+    if (n.toLowerCase() === 'unknown' || n.toLowerCase() === 'unknown company') return 'Company';
+    return n;
+}
 
 export default function SavedScreen() {
     const router = useRouter();
-    const savedJobs = useAppStore(state => state.savedJobs);
+    const insets = useSafeAreaInsets();
+    const { getAuthHeaders } = useAuthHeaders();
+    const [savedJobs, setSavedJobs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const loadingRef = useRef(false);
+    const lastFetchedAtRef = useRef(0);
+    const SAVED_COOLDOWN_MS = 5000;
 
-    const [activeTab, setActiveTab] = useState<'SAVED' | 'APPLIED'>('SAVED');
+    const loadSaved = useCallback(async (force = false) => {
+        const now = Date.now();
+        if (!force && lastFetchedAtRef.current > 0 && now - lastFetchedAtRef.current < SAVED_COOLDOWN_MS) {
+            setLoading(false);
+            return;
+        }
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+        setLoading(true);
+        try {
+            const headers = await getAuthHeaders();
+            const { API_URL } = await import('@/constants/api');
+            const res = await fetch(`${API_URL}/swipes/saved`, { headers });
+            if (!res.ok) {
+                setSavedJobs([]);
+                return;
+            }
+            const data = await res.json();
+            const jobs = (data.data || []).map((j: any) => ({
+                id: j.id,
+                title: j.title || 'Unknown',
+                company: displayCompany(j.company),
+                location: (j.location || 'Unknown').toUpperCase(),
+                timeAgo: formatTimeAgo(j.saved_at),
+                apply_url: j.apply_url || '',
+                apply_email: j.apply_email || '',
+                description: j.description || '',
+            }));
+            setSavedJobs(jobs);
+            lastFetchedAtRef.current = Date.now();
+        } catch {
+            setSavedJobs([]);
+        } finally {
+            loadingRef.current = false;
+            setLoading(false);
+        }
+    }, [getAuthHeaders]);
 
-    const filteredJobs = savedJobs.filter(job => job.status === activeTab);
+    useFocusEffect(
+        useCallback(() => {
+            loadSaved();
+        }, [loadSaved])
+    );
 
-    const renderItem = ({ item }: { item: typeof savedJobs[0] }) => {
-        const isSaved = item.status === 'SAVED';
-
-        return (
-            <Pressable
-                style={styles.card}
-                onPress={() => router.push({ pathname: '/job-detail', params: { id: item.id } })}
-            >
-                {/* Left: Company Logo Box */}
-                <View style={styles.logoBox}>
-                    <Text style={styles.logoInitial}>{item.company.charAt(0)}</Text>
-                </View>
-
-                {/* Center: Info */}
-                <View style={styles.infoCenter}>
-                    <Text style={styles.jobTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.companyName}>{item.company}</Text>
-
-                    <View style={styles.metaRow}>
-                        <Ionicons name="location-outline" size={12} color={COLORS.metaText} style={{ marginRight: 2 }} />
-                        <Text style={styles.metaText}>{item.location.toUpperCase()}</Text>
-                        <Text style={styles.metaDot}>•</Text>
-                        <Ionicons name="time-outline" size={12} color={COLORS.metaText} style={{ marginRight: 2 }} />
-                        <Text style={styles.metaText}>{item.timeAgo}</Text>
-                    </View>
-                </View>
-
-                {/* Right: Badge Pill */}
-                <View style={[
-                    styles.badgePill,
-                    { backgroundColor: isSaved ? 'rgba(255,68,34,0.10)' : 'rgba(16,185,129,0.10)' }
-                ]}>
-                    <Text style={[
-                        styles.badgeText,
-                        { color: isSaved ? COLORS.accentRed : COLORS.accentGreen }
-                    ]}>
-                        {item.status}
-                    </Text>
-                </View>
-            </Pressable>
-        );
+    const handleApply = (item: any) => {
+        const url = (item.apply_url || '').trim();
+        if (url && url.startsWith('http')) {
+            WebBrowser.openBrowserAsync(url);
+        } else if (item.apply_email) {
+            WebBrowser.openBrowserAsync(`mailto:${item.apply_email}`);
+        }
     };
+
+    const renderItem = ({ item }: { item: any }) => (
+        <Pressable
+            style={styles.card}
+            onPress={() => router.push({ pathname: '/job-detail', params: { id: item.id } })}
+        >
+            <View style={styles.logoBox}>
+                <Text style={styles.logoInitial}>{(displayCompany(item.company) || 'C').charAt(0).toUpperCase()}</Text>
+            </View>
+            <View style={styles.infoCenter}>
+                <Text style={styles.jobTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(item.company)}</Text>
+                <View style={styles.metaRow}>
+                    <Ionicons name="location-outline" size={12} color={COLORS.metaText} style={{ marginRight: 2 }} />
+                    <Text style={styles.metaText}>{item.location}</Text>
+                    <Text style={styles.metaDot}>•</Text>
+                    <Text style={styles.metaText}>{item.timeAgo}</Text>
+                </View>
+            </View>
+            <Pressable
+                style={styles.applyPill}
+                onPress={(e) => { e.stopPropagation(); handleApply(item); }}
+            >
+                <Text style={styles.applyPillText}>Apply</Text>
+            </Pressable>
+        </Pressable>
+    );
 
     return (
         <View style={styles.container}>
-            <StatusBar style="dark" />
-
-            {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 <Text style={styles.headerTitle}>My List</Text>
             </View>
 
-            {/* Tabs Row */}
-            <View style={styles.tabsContainer}>
-                <Pressable
-                    style={[styles.tab, activeTab === 'SAVED' && styles.tabActive]}
-                    onPress={() => setActiveTab('SAVED')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'SAVED' && styles.tabTextActive]}>
-                        Saved
-                    </Text>
-                </Pressable>
-
-                <Pressable
-                    style={[styles.tab, activeTab === 'APPLIED' && styles.tabActive]}
-                    onPress={() => setActiveTab('APPLIED')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'APPLIED' && styles.tabTextActive]}>
-                        Applied
-                    </Text>
-                </Pressable>
-            </View>
-
-            {/* FlatList */}
-            <FlatList
-                data={filteredJobs}
-                keyExtractor={(item) => item.id}
-                renderItem={renderItem}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>No {activeTab.toLowerCase()} jobs yet.</Text>
-                    </View>
-                }
-            />
+            {loading ? (
+                <View style={styles.emptyContainer}>
+                    <ActivityIndicator size="large" color={COLORS.accentRed} />
+                    <Text style={[styles.emptyText, { marginTop: 12 }]}>Loading saved jobs...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={savedJobs}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderItem}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: 120 + insets.bottom }]}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>No saved jobs yet.</Text>
+                            <Text style={styles.emptySubtext}>Swipe right on jobs to save them.</Text>
+                        </View>
+                    }
+                />
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    header: {
-        paddingTop: 64,
-        paddingHorizontal: 24,
-        marginBottom: 16,
-    },
-    headerTitle: {
-        fontFamily: 'Syne_800ExtraBold',
-        fontSize: 32,
-        color: COLORS.textPrimary,
-    },
-    tabsContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 24,
-        marginBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-    tab: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-        marginBottom: -1, // Overlap the container border
-    },
-    tabActive: {
-        borderBottomColor: COLORS.accentRed,
-    },
-    tabText: {
-        fontFamily: 'DMSans_500Medium',
-        fontSize: 15,
-        color: COLORS.textMuted,
-    },
-    tabTextActive: {
-        color: COLORS.accentRed,
-    },
-    listContent: {
-        paddingHorizontal: 16,
-        paddingBottom: 120, // Leave room for custom tab bar
-        gap: 12,
-    },
+    container: { flex: 1, backgroundColor: COLORS.background },
+    header: { paddingTop: 64, paddingHorizontal: 24, marginBottom: 16 },
+    headerTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 32, color: COLORS.textPrimary },
+    listContent: { paddingHorizontal: 16, paddingBottom: 120, gap: 12 },
     card: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: COLORS.surface,
         borderRadius: 16,
         padding: 16,
-        // Shadow for iOS
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
-        // Elevation for Android
         elevation: 2,
     },
     logoBox: {
@@ -186,61 +191,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: 12,
     },
-    logoInitial: {
-        fontFamily: 'Syne_800ExtraBold',
-        fontSize: 24,
-        color: COLORS.textPrimary,
-    },
-    infoCenter: {
-        flex: 1,
-        gap: 3,
-        marginRight: 8,
-    },
-    jobTitle: {
-        fontFamily: 'DMSans_500Medium',
-        fontSize: 15,
-        color: COLORS.textPrimary,
-    },
-    companyName: {
-        fontFamily: 'DMSans_400Regular',
-        fontSize: 13,
-        color: COLORS.textMuted,
-    },
-    metaRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 2,
-    },
-    metaText: {
-        fontFamily: 'DMSans_400Regular',
-        fontSize: 11,
-        color: COLORS.metaText,
-    },
-    metaDot: {
-        color: COLORS.metaText,
-        fontSize: 10,
-        marginHorizontal: 4,
-    },
-    badgePill: {
+    logoInitial: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary },
+    infoCenter: { flex: 1, gap: 3, marginRight: 8 },
+    jobTitle: { fontFamily: 'DMSans_500Medium', fontSize: 15, color: COLORS.textPrimary },
+    companyName: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: COLORS.textMuted },
+    metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+    metaText: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: COLORS.metaText },
+    metaDot: { color: COLORS.metaText, fontSize: 10, marginHorizontal: 4 },
+    applyPill: {
+        backgroundColor: COLORS.accentRed,
         borderRadius: 50,
-        paddingVertical: 5,
-        paddingHorizontal: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        minWidth: 48,
+        minHeight: 48,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    badgeText: {
-        fontFamily: 'DMSans_500Medium',
-        fontSize: 11,
-        letterSpacing: 0.5,
-    },
-    emptyContainer: {
-        padding: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emptyText: {
-        fontFamily: 'DMSans_400Regular',
-        fontSize: 14,
-        color: COLORS.textMuted,
-    }
+    applyPillText: { fontFamily: 'DMSans_500Medium', fontSize: 13, color: 'white' },
+    emptyContainer: { padding: 40, alignItems: 'center', justifyContent: 'center' },
+    emptyText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textMuted },
+    emptySubtext: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.metaText, marginTop: 8 },
 });

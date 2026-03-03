@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, timezone
-from dependencies import supabase, get_current_user
+from dependencies import get_supabase, get_current_user
+import os
 
 router = APIRouter(prefix="/swipes", tags=["Swipes"])
 
@@ -9,7 +10,8 @@ class SwipeAction(BaseModel):
     job_id: str
     direction: str
 
-FREE_SWIPE_LIMIT = 10
+# For testing use high limit; set env FREE_SWIPE_LIMIT=10 for production
+FREE_SWIPE_LIMIT = int(os.environ.get("FREE_SWIPE_LIMIT", "999"))
 
 @router.post("")
 async def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
@@ -51,11 +53,11 @@ async def register_swipe(action: SwipeAction, user: dict = Depends(get_current_u
     }
     
     try:
-        supabase.table("swipes").insert(swipe_data).execute()
+        get_supabase().table("swipes").insert(swipe_data).execute()
         
         # Increment their swipe counter
         updates["swipes_today"] = swipes_today + 1
-        supabase.table("users").update(updates).eq("id", user_id).execute()
+        get_supabase().table("users").update(updates).eq("id", user_id).execute()
         
         return {
             "success": True, 
@@ -72,20 +74,34 @@ async def get_saved_jobs(user: dict = Depends(get_current_user)):
     user_id = user["id"]
     
     try:
-        # Join query fetching the swipe metadata AND the full job details.
-        # Order by newest saves first
-        res = supabase.table("swipes").select("*, jobs(*)").eq("user_id", user_id).eq("direction", "right").order("created_at", desc=True).execute()
+        swipes_res = get_supabase().table("swipes").select("job_id, created_at").eq("user_id", user_id).eq("direction", "right").order("created_at", desc=True).execute()
+        rows = swipes_res.data or []
+        if not rows:
+            return {"data": []}
         
-        # Flatten the object for the frontend client so they just get a clean "jobs" array 
-        # with the "saved_at" datetime attached to it
+        job_ids = [r["job_id"] for r in rows if r.get("job_id")]
+        if not job_ids:
+            return {"data": []}
+        
+        jobs_res = get_supabase().table("jobs").select(
+            "id, title, company, company_logo_url, location, city, apply_url, apply_email, posted_at, experience_level, job_region, is_remote"
+        ).in_("id", job_ids).execute()
+        jobs_by_id = {j["id"]: j for j in (jobs_res.data or []) if isinstance(j, dict) and j.get("id")}
+        
         saved_jobs = []
-        for row in res.data:
-            job = row["jobs"]
-            if job:
-                job["saved_at"] = row["created_at"]
-                saved_jobs.append(job)
-                
+        for row in rows:
+            jid = row.get("job_id")
+            job = jobs_by_id.get(jid) if jid else None
+            if job is None:
+                continue
+            job = dict(job)
+            job["saved_at"] = row.get("created_at")
+            saved_jobs.append(job)
+        
+        saved_jobs.sort(key=lambda x: (x.get("saved_at") or ""), reverse=True)
         return {"data": saved_jobs}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch saved jobs: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch saved jobs: {str(e)}")

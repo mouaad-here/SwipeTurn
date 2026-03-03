@@ -72,11 +72,16 @@ backend/reset_users.py
 # Debug & local-only pipeline scripts
 pipeline/test_*.py
 
-# Local artifacts & notes
-diff_utf8.txt
-senior_lead_titles.txt
-marketing_prompts.md
-swipeturn_production_prompt.md
+# Markdown docs — only README.md should be in the repo
+*.md
+!README.md
+
+# Supabase migrations and config (local only)
+supabase/
+
+# Text artifacts (keep requirements files)
+*.txt
+!**/requirements.txt
 
 # Study/research data (local only)
 study_of_data/

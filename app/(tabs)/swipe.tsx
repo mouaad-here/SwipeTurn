@@ -1,8 +1,10 @@
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetFooter, BottomSheetFooterProps, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { Extrapolation, FadeIn, interpolate, runOnJS, SlideOutLeft, SlideOutRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -12,77 +14,35 @@ import { useAppStore } from '../../store/appStore';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.15; // Decreased to make swipe much easier
 
-// --- MOCK API ---
-const api = {
-    getFeed: async () => {
-        return new Promise<any[]>((resolve) => {
-            setTimeout(() => {
-                resolve([
-                    {
-                        id: '1',
-                        company: 'Vercel',
-                        location: 'San Francisco, CA',
-                        remote: true,
-                        title: 'Senior Frontend Engineer',
-                        description: `We are looking for a Senior Frontend Engineer to help us build the next generation of our web platform. You will work closely with design and product to build stunning, high-performance interfaces.
+function displayCompany(name: string | null | undefined): string {
+    if (name == null || name === '') return 'Company';
+    const n = String(name).trim();
+    if (n.toLowerCase() === 'unknown' || n.toLowerCase() === 'unknown company') return 'Company';
+    return n;
+}
 
-At Vercel, our mission is to provide the ultimate workflow for developing, previewing, and shipping web applications. You will be a core contributor to our flagship dashboard interface, used by millions of developers worldwide.
-
-What You Will Do:
-• Architect, design, and implement scalable, complex frontend systems using React and Next.js.
-• Collaborate with backend engineers to define API contracts and integrate seamless data fetching.
-• Mentor junior engineers and drive frontend best practices across the engineering organization.
-• Own the entire lifecycle of a feature: from ideation and rapid prototyping to production deployment and monitoring.
-• Deeply care about performance, accessibility, and pixel-perfect design implementation.
-
-Qualifications:
-• 5+ years of professional experience building web applications in a production environment.
-• Deep understanding of React, Next.js, and modern TypeScript patterns.
-• Experience with complex state management, performance optimization, and Web Vitals.
-• Strong communication skills and a product-focused mindset.
-
-Bonus points if you have experience building component libraries or working with WASM. We value developers who are passionate about the Web and actively contribute to the open-source community.`,
-                        skills: [
-                            { name: 'React', matched: true },
-                            { name: 'Next.js', matched: true },
-                            { name: 'TypeScript', matched: true },
-                            { name: 'Tailwind CSS', matched: true },
-                            { name: 'Node.js', matched: true },
-                            { name: 'AWS', matched: true },
-                            { name: 'GraphQL', matched: false },
-                            { name: 'Performance Optimization', matched: true },
-                            { name: 'Accessibility (a11y)', matched: true }
-                        ],
-                        matchScore: 92
-                    },
-                    {
-                        id: '2',
-                        company: 'Stripe',
-                        location: 'Dublin, Ireland',
-                        remote: false,
-                        title: 'Fullstack Developer',
-                        description: 'Join the payments team to build scalable infrastructure for millions of businesses worldwide. You will be responsible for end-to-end features.',
-                        skills: [{ name: 'TypeScript', matched: true }, { name: 'Node.js', matched: true }, { name: 'Ruby', matched: false }],
-                        matchScore: 85
-                    },
-                    {
-                        id: '3',
-                        company: 'Spotify',
-                        location: 'Stockholm, SE',
-                        remote: true,
-                        title: 'React Native Engineer',
-                        description: 'Help us build robust mobile experiences for millions of creators. Minimum 4 years of experience shipping production React Native apps. Complex animations experience is a bonus.',
-                        skills: [{ name: 'React Native', matched: true }, { name: 'TypeScript', matched: true }, { name: 'Swift', matched: false }, { name: 'Kotlin', matched: false }],
-                        matchScore: 78
-                    }
-                ]);
-            }, 1000);
-        });
-    },
-    recordSwipe: async (id: string, direction: 'left' | 'right') => {
-        console.log(`[API] Swiped ${direction} on job ${id}`);
+function formatPostedAt(postedAt: string | null | undefined): string {
+    if (!postedAt) return '';
+    try {
+        const date = new Date(postedAt);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        if (diffMins < 1) return 'New';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays === 1) return '1 day ago';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+        return date.toLocaleDateString();
+    } catch {
+        return '';
     }
 }
+
+// --- Constants moving inside component ---
 
 // --- CONSTANTS ---
 const COLORS = {
@@ -193,11 +153,16 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                 <View style={styles.cardTop}>
                     <View style={styles.companyRow}>
                         <View style={styles.companyLogo}>
-                            <Text style={styles.companyInitial}>{job.company.charAt(0)}</Text>
+                            <Text style={styles.companyInitial}>{(displayCompany(job.company) || 'C').charAt(0).toUpperCase()}</Text>
                         </View>
                         <View style={styles.companyInfo}>
-                            <Text style={styles.companyName}>{job.company}</Text>
-                            <Text style={styles.companyLocation}>📍 {job.location}</Text>
+                            <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(job.company)}</Text>
+                            <View style={styles.companyMetaRow}>
+                                <Text style={styles.companyLocation}>📍 {job.location}</Text>
+                                {formatPostedAt(job.posted_at) ? (
+                                    <Text style={styles.postedBadge}>{formatPostedAt(job.posted_at)}</Text>
+                                ) : null}
+                            </View>
                         </View>
                         {job.remote && (
                             <View style={styles.badgeRemote}>
@@ -207,7 +172,7 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                     </View>
                     <Text style={styles.jobTitle} numberOfLines={2}>{job.title}</Text>
                     <View style={styles.skillsRow}>
-                        {job.skills.map((skill: any, idx: number) => (
+                        {(Array.isArray(job.skills) ? job.skills : []).map((skill: any, idx: number) => (
                             <View key={idx} style={[styles.skillChip, skill.matched ? styles.skillChipMatched : styles.skillChipUnmatched]}>
                                 {skill.matched ? (
                                     <Text style={styles.skillChipTextMatched}>✓ {skill.name}</Text>
@@ -220,8 +185,8 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                             </View>
                         ))}
                     </View>
-                    <Text style={styles.description} numberOfLines={4}>
-                        {job.description}
+                    <Text style={styles.description} numberOfLines={8}>
+                        {job.description != null ? String(job.description) : ''}
                     </Text>
                 </View>
 
@@ -251,16 +216,20 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
 };
 
 export default function SwipeScreen() {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const saveJob = useAppStore(state => state.saveJob);
 
     const [feed, setFeed] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+    const [geographyMode, setGeographyMode] = useState<string>('both');
 
     const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
     const snapPoints = React.useMemo(() => ['85%', '100%'], []);
     const [selectedJob, setSelectedJob] = useState<any>(null);
+    const feedLoadedRef = useRef(false);
+    const loadingRef = useRef(false);
 
     const openJobDetails = (job: any) => {
         setSelectedJob(job);
@@ -268,6 +237,8 @@ export default function SwipeScreen() {
     };
 
     useEffect(() => {
+        if (feedLoadedRef.current) return;
+        feedLoadedRef.current = true;
         loadFeed();
     }, []);
 
@@ -283,7 +254,13 @@ export default function SwipeScreen() {
                         </View>
                         <Pressable
                             style={styles.sheetApplyBtn}
-                            onPress={() => WebBrowser.openBrowserAsync('https://example.com/apply/' + selectedJob.id)}
+                            onPress={() => {
+                                if (selectedJob.url) {
+                                    WebBrowser.openBrowserAsync(selectedJob.url);
+                                } else {
+                                    console.warn("No apply URL available for this job.");
+                                }
+                            }}
                         >
                             <Text style={styles.sheetApplyBtnText}>Apply Now</Text>
                         </Pressable>
@@ -294,32 +271,116 @@ export default function SwipeScreen() {
         [selectedJob, insets.bottom]
     );
 
+    const { getAuthHeaders } = useAuthHeaders();
+
     const loadFeed = async () => {
+        if (loadingRef.current) return;
+        loadingRef.current = true;
         setLoading(true);
-        const data = await api.getFeed();
-        setFeed(data);
-        setLoading(false);
+        try {
+            const headers = await getAuthHeaders();
+            const { API_URL } = await import('@/constants/api');
+            const response = await fetch(`${API_URL}/jobs/feed`, {
+                headers: { ...headers }
+            });
+
+            if (response.status === 401) {
+                router.replace('/');
+                setFeed([]);
+                loadingRef.current = false;
+                setLoading(false);
+                return;
+            }
+
+            if (!response.ok) {
+                console.error("Failed to fetch jobs feed", response.status);
+                setFeed([]);
+                loadingRef.current = false;
+                setLoading(false);
+                return;
+            }
+
+            const data = await response.json();
+
+            // Map backend job schema to frontend swipe card expectations (audit: use city, logo_url, description_text)
+            const rawJobs = Array.isArray(data.jobs) ? data.jobs : [];
+            const geographyMode = data.geography_mode || 'both';
+            const mappedJobs = rawJobs.map((job: any) => {
+                const matched = Array.isArray(job.matched_skills) ? job.matched_skills : [];
+                const missing = Array.isArray(job.missing_skills) ? job.missing_skills : [];
+                const combinedSkills = [
+                    ...matched.map((s: string) => ({ name: String(s), matched: true })),
+                    ...missing.map((s: string) => ({ name: String(s), matched: false }))
+                ];
+                const descRaw = job.description_text || job.description || '';
+                const descriptionPreview = typeof descRaw === 'string' ? descRaw.slice(0, 3000) : '';
+                const company = displayCompany(job.company);
+                const locationDisplay = job.city != null && String(job.city).trim() !== '' ? String(job.city) : (job.location != null ? String(job.location) : 'Unknown');
+                return {
+                    id: job.id,
+                    company,
+                    location: locationDisplay,
+                    city: job.city,
+                    remote: (job.is_remote || (job.location && String(job.location).toLowerCase().includes('remote'))) || false,
+                    title: job.title != null ? String(job.title) : 'Job',
+                    description: descriptionPreview,
+                    descriptionFull: job.description_text || job.description || '',
+                    logoUrl: job.logo_url || job.company_logo_url || null,
+                    skills: combinedSkills,
+                    matchScore: typeof job.match_score === 'number' ? job.match_score : 0,
+                    type: job.type || job.job_type || 'full-time',
+                    url: job.apply_url || job.job_url || '',
+                    visa_badge: job.visa_badge,
+                    posted_at: job.posted_at || job.posted_at_iso || null,
+                };
+            });
+
+            setFeed(mappedJobs);
+            setGeographyMode(geographyMode);
+        } catch (error) {
+            const { API_URL } = await import('@/constants/api');
+            console.error("Feed error:", error, "| API_URL:", `${API_URL}/jobs/feed`);
+            setFeed([]);
+            setGeographyMode('both');
+        } finally {
+            loadingRef.current = false;
+            setLoading(false);
+        }
     };
 
-    const handleSwipeEnd = (direction: 'left' | 'right') => {
+    const handleSwipeEnd = async (direction: 'left' | 'right') => {
         if (feed.length === 0) return;
 
         const topJob = feed[0];
-        setSwipeDirection(direction); // Set swipe direction for animation
-        api.recordSwipe(topJob.id, direction); // Record the swipe action
+        setSwipeDirection(direction);
 
         // Let the exit animation finish, then pop the card
         setTimeout(() => {
             if (direction === 'right') {
                 saveJob(topJob);
-                console.log('[API] Swiped right on job ' + topJob.id);
-            } else {
-                console.log('[API] Swiped left on job ' + topJob.id);
             }
-
             setFeed((prev) => prev.slice(1));
             setSwipeDirection(null);
         }, 150);
+
+        // Async record swipe to backend
+        try {
+            const headers = await getAuthHeaders();
+            const { API_URL } = await import('@/constants/api');
+            await fetch(`${API_URL}/swipes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers
+                },
+                body: JSON.stringify({
+                    job_id: topJob.id,
+                    direction: direction
+                })
+            });
+        } catch (err) {
+            console.error("Failed to record swipe", err);
+        }
     };
 
 
@@ -329,7 +390,7 @@ export default function SwipeScreen() {
             <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
             <Text style={styles.emptyTitle}>No more jobs today</Text>
             <Text style={styles.emptySubtitle}>You've caught up with all matches.</Text>
-            <Pressable style={styles.refreshButton} onPress={loadFeed}>
+            <Pressable style={styles.refreshButton} onPress={() => { feedLoadedRef.current = false; loadFeed(); }}>
                 <Text style={styles.refreshButtonText}>Refresh</Text>
             </Pressable>
         </View>
@@ -342,17 +403,24 @@ export default function SwipeScreen() {
             <StatusBar style="dark" />
 
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerLeft}>
                     <View style={styles.orangeCircle}>
                         <Ionicons name="swap-horizontal" size={16} color="white" />
                     </View>
                     <Text style={styles.headerTitle}>Swip<Text style={{ color: COLORS.accentRed }}>turn</Text></Text>
                 </View>
-                <Pressable style={styles.bellButton}>
+                <Pressable style={styles.bellButton} hitSlop={12}>
                     <Ionicons name="notifications" size={20} color={COLORS.textPrimary} />
                 </Pressable>
             </View>
+            {!loading && feed.length > 0 && (
+                <View style={styles.geographyModeRow}>
+                    <Text style={styles.geographyModeText}>
+                        Showing: {geographyMode === 'morocco' ? 'Morocco only 🇲🇦' : geographyMode === 'global' ? 'Global / Remote 🌍' : 'Everywhere'}
+                    </Text>
+                </View>
+            )}
 
             {/* Cards Stack */}
             <View style={styles.stackContainer}>
@@ -425,11 +493,11 @@ export default function SwipeScreen() {
                         <View style={styles.sheetCard}>
                             <View style={styles.sheetCompanyRow}>
                                 <View style={styles.sheetCompanyLogo}>
-                                    <Text style={styles.sheetCompanyInitial}>{selectedJob.company.charAt(0)}</Text>
+                                    <Text style={styles.sheetCompanyInitial}>{(displayCompany(selectedJob.company) || 'C').charAt(0).toUpperCase()}</Text>
                                 </View>
                                 <View style={styles.sheetCompanyInfo}>
-                                    <Text style={styles.sheetJobTitle}>{selectedJob.title}</Text>
-                                    <Text style={styles.sheetCompanyName}>{selectedJob.company}</Text>
+                                    <Text style={styles.sheetJobTitle}>{selectedJob.title || 'Job'}</Text>
+                                    <Text style={styles.sheetCompanyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(selectedJob.company)}</Text>
 
                                     <Text style={styles.sheetLocationRow}>
                                         <Ionicons name="location-outline" size={14} color={COLORS.textMuted} /> {selectedJob.location}
@@ -449,7 +517,9 @@ export default function SwipeScreen() {
                                                 <Text style={styles.sheetPillText}>Remote</Text>
                                             </View>
                                         )}
-                                        <Text style={styles.sheetTimeText}>2 days ago</Text>
+                                        {formatPostedAt(selectedJob.posted_at) ? (
+                                            <Text style={styles.sheetTimeText}>{formatPostedAt(selectedJob.posted_at)}</Text>
+                                        ) : null}
                                     </View>
                                 </View>
                                 <Pressable style={styles.sheetSaveBtn}>
@@ -470,9 +540,7 @@ export default function SwipeScreen() {
                         <View style={styles.sheetDescSection}>
                             <Text style={styles.sheetSectionTitle}>Job Description</Text>
                             <View style={styles.sheetDescBox}>
-                                <Text style={styles.sheetDescText}>{selectedJob.description}</Text>
-                                <Text style={[styles.sheetDescText, { marginTop: 16 }]}>{selectedJob.description}</Text>
-                                <Text style={[styles.sheetDescText, { marginTop: 16 }]}>{selectedJob.description}</Text>
+                                <Text style={styles.sheetDescText}>{(selectedJob.descriptionFull ?? selectedJob.description) != null ? String(selectedJob.descriptionFull ?? selectedJob.description) : 'No description available.'}</Text>
                             </View>
                         </View>
                         {/* Empty spacer to ensure scrollable height passes bottom threshold */}
@@ -488,9 +556,11 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 10 },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    orangeCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.accentRed, justifyContent: 'center', alignItems: 'center' },
+    orangeCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.accentRed, justifyContent: 'center', alignItems: 'center' },
     headerTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary },
-    bellButton: { padding: 8 },
+    bellButton: { minWidth: 48, minHeight: 48, padding: 8, justifyContent: 'center', alignItems: 'center' },
+    geographyModeRow: { paddingHorizontal: 20, paddingBottom: 6 },
+    geographyModeText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.textMuted },
     stackContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 110 },
     cardsWrapper: { width: SCREEN_WIDTH * 0.9, height: SCREEN_HEIGHT * 0.65, marginBottom: 10 },
     card: { position: 'absolute', width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: COLORS.background },
@@ -500,7 +570,9 @@ const styles = StyleSheet.create({
     companyInitial: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary },
     companyInfo: { flex: 1 },
     companyName: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.textPrimary },
-    companyLocation: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textMuted, marginTop: 4 },
+    companyMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    companyLocation: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textMuted },
+    postedBadge: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.accentRed },
     badgeRemote: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
     badgeRemoteText: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.accentGreen },
     jobTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary, marginBottom: 16 },
@@ -534,11 +606,11 @@ const styles = StyleSheet.create({
     emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
     emptyTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary, marginTop: 16 },
     emptySubtitle: { fontFamily: 'DMSans_400Regular', fontSize: 16, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
-    refreshButton: { marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: COLORS.accentRed, borderRadius: 24 },
+    refreshButton: { marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, minHeight: 48, justifyContent: 'center', backgroundColor: COLORS.accentRed, borderRadius: 24 },
     refreshButtonText: { fontFamily: 'DMSans_500Medium', fontSize: 16, color: COLORS.background },
     sheetScroll: {},
     sheetHeaderGroup: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
-    sheetHeaderBtn: { padding: 8 },
+    sheetHeaderBtn: { minWidth: 48, minHeight: 48, padding: 8, justifyContent: 'center', alignItems: 'center' },
     sheetHeaderTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 18, color: COLORS.textPrimary },
     sheetCard: { paddingHorizontal: 20 },
     sheetCompanyRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
@@ -553,7 +625,7 @@ const styles = StyleSheet.create({
     sheetPill: { backgroundColor: COLORS.surface2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     sheetPillText: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.textPrimary },
     sheetTimeText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.textMuted },
-    sheetSaveBtn: { padding: 8, backgroundColor: COLORS.surface2, borderRadius: 20 },
+    sheetSaveBtn: { minWidth: 48, minHeight: 48, padding: 8, backgroundColor: COLORS.surface2, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
     sheetTabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 20 },
     sheetTabActive: { paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: COLORS.accentRed, marginRight: 24 },
     sheetTabTextActive: { fontFamily: 'Syne_800ExtraBold', fontSize: 16, color: COLORS.accentRed },

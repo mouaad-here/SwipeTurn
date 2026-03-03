@@ -39,7 +39,13 @@ async def parse_cv(cv_text: str) -> dict:
     
     Structure the JSON exactly like this:
     {
+      "full_name": "User Name",
+      "email": "user@example.com",
+      "linkedin_url": "https://linkedin.com/in/username",
       "skills": ["Skill 1", "Skill 2"],
+      "education": [{"school": "University Name", "degree": "Degree Name", "year": "2023"}],
+      "projects": [{"title": "Project Title", "description": "Brief description"}],
+      "languages": ["English", "French"],
       "experience_level": "student" | "junior" | "mid" | "senior" | "lead",
       "fields": ["Software Engineering", "Data Science", etc]
     }
@@ -61,7 +67,7 @@ async def parse_cv(cv_text: str) -> dict:
                     "temperature": 0.1,
                     "response_format": { "type": "json_object" }
                 },
-                timeout=30.0
+                timeout=60.0
             )
             response.raise_for_status()
             data = response.json()
