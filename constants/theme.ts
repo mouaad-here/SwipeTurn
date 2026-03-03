@@ -1,20 +1,22 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Legacy Expo boilerplate colors (kept for compatibility with hooks/use-theme-color.ts).
+ * For app UI colors use `constants/colors.ts` instead.
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+export { COLORS, COLORS_ALPHA } from './colors';
+
+const tintColorLight = '#FF4422';
 const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: '#111827',
+    background: '#F8F9FA',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#6B7280',
+    tabIconDefault: '#9CA3AF',
     tabIconSelected: tintColorLight,
   },
   dark: {

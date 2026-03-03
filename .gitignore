@@ -60,3 +60,32 @@ strategic_plots/
 *.pdf
 *.sqlite3
 jobs_rows.csv
+
+# Debug & local-only backend scripts
+backend/out.txt
+backend/test_*.py
+backend/db_analysis.py
+backend/analyze_profile.py
+backend/verify_matching.py
+backend/reset_users.py
+
+# Debug & local-only pipeline scripts
+pipeline/test_*.py
+
+# Local artifacts & notes
+diff_utf8.txt
+senior_lead_titles.txt
+marketing_prompts.md
+swipeturn_production_prompt.md
+
+# Study/research data (local only)
+study_of_data/
+
+# Cursor plans (local AI session data)
+.cursor/plans/
+
+# Python virtual environments
+backend/venv/
+backend/.venv/
+pipeline/venv/
+pipeline/.venv/
