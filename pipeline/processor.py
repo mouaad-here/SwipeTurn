@@ -1,5 +1,4 @@
 import os
-import json
 import re
 import html
 import difflib
@@ -11,7 +10,6 @@ from supabase import create_client, Client
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-# Service role key bypasses RLS; required for pipeline inserts. Anon key will fail with RLS enabled.
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
 
 if SUPABASE_URL and SUPABASE_KEY:
@@ -20,165 +18,7 @@ else:
     supabase = None
     print("WARNING: Supabase URL or Key not set. DB inserts will fail.")
 
-OPEN_TO_INTL_KEYWORDS = [
-    "open to international", "worldwide", "any nationality",
-    "global candidates", "all nationalities", "international applicants",
-    "moroccan", "morocco", "north africa", "afrique du nord",
-    "mena", "maghreb", "maroc", "no visa required",
-    "remote worldwide", "100% remote"
-]
-
-VISA_SPONSORSHIP_KEYWORDS = [
-    "visa sponsorship", "sponsor work permit", "relocation package",
-    "work permit provided", "visa provided", "tier 2 sponsor",
-    "h-1b sponsor", "we sponsor", "relocation assistance"
-]
-
-SENIORITY_RULES = {
-    "student": [
-        "intern", "internship", "stage", "stagiaire", "apprenti",
-        "apprentice", "graduate", "new grad", "new graduate",
-        "entry level", "entry-level", "fresh graduate",
-        "trainee", "bootcamp", "co-op", "coop",
-    ],
-    "junior": [
-        "junior", " jr ", "jr.", "(jr)", "associate engineer",
-        "associate developer", "associate software",
-        "1-2 years", "1-3 years", "0-2 years", "débutant",
-    ],
-    "mid": [
-        "mid-level", "mid level", "midlevel",
-        "engineer ii", "engineer 2", "swe ii", "swe2",
-        "software engineer ii", "software engineer 2",
-        "level ii", "level 2",
-        "intermediate", "confirmed", "confirmé",
-        "2-4 years", "3-5 years",
-    ],
-    "senior": [
-        "senior", " sr.", "sr ", "(sr)", "/ sr",
-        "lead ", "tech lead", "team lead",
-        "principal", "staff engineer", "staff software",
-        "architect", "head of", "director", " vp ", "vp,",
-        "engineer iii", "engineer iv", "engineer v",
-        "engineer 3", "engineer 4", "engineering manager",
-        "group product manager",
-        "7+ years", "8+ years", "10+ years",
-    ],
-}
-
-SKILLS_LIST = [
-    "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust", "php", "ruby", "swift", "kotlin",
-    "react", "angular", "vue", "next.js", "nuxt", "svelte", "react native", "flutter",
-    "node.js", "express", "django", "flask", "fastapi", "spring boot", "laravel", "ruby on rails",
-    "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "cassandra", "dynamodb",
-    "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "ansible", "jenkins", "github actions",
-    "machine learning", "deep learning", "nlp", "computer vision", "tensorflow", "pytorch", "scikit-learn",
-    "data science", "data engineering", "pandas", "numpy", "spark", "hadoop",
-    "html", "css", "tailwind css", "sass", "graphql", "rest api", "grpc", "rabbitmq", "kafka",
-    "figma", "ui/ux", "product management", "agile", "scrum", "jira"
-]
-
-SKILL_ALIASES = {
-    "js": "javascript",
-    "ts": "typescript",
-    "nodejs": "node.js",
-    "node": "node.js",
-    "postgres": "postgresql",
-    "k8s": "kubernetes",
-    "tf": "terraform",
-    "rn": "react native",
-    "py": "python",
-    "ml": "machine learning",
-    "ai": "machine learning",
-}
-
-SKILL_SECTIONS = (
-    "requirements", "required skills", "must have", "nice to have",
-    "qualifications", "competences", "compétences", "skills", "stack",
-    "profil recherché", "profile", "technologies",
-)
-
-
-def _normalize_skill_name(skill: str) -> str:
-    s = (skill or "").strip().lower()
-    s = re.sub(r"\s+", " ", s)
-    return SKILL_ALIASES.get(s, s)
-
-
-def _extract_sectioned_text(text: str) -> str:
-    lower = text.lower()
-    extracted = []
-    for label in SKILL_SECTIONS:
-        idx = lower.find(label)
-        if idx == -1:
-            continue
-        chunk = text[idx:idx + 420]
-        extracted.append(chunk)
-    return "\n".join(extracted)
-
-
-def extract_skills(text: str) -> list[str]:
-    """Auto-extract known tech keywords from text with section-aware boost."""
-    if not text:
-        return []
-    
-    found_skills = set()
-    text_lower = text.lower()
-    focus_text = _extract_sectioned_text(text)
-    combined = f"{text_lower}\n{focus_text.lower()}".strip()
-    
-    for skill in SKILLS_LIST:
-        # Use simple boundary matching to avoid matching partial words
-        pattern = r'\b' + re.escape(skill) + r'\b'
-        if re.search(pattern, combined):
-            found_skills.add(_normalize_skill_name(skill))
-
-    # Small n-gram style pass for common terms often missed in mixed formatting
-    raw_tokens = re.split(r"[^a-zA-Z0-9\+\#\.\-/]+", combined)
-    for tok in raw_tokens:
-        if not tok:
-            continue
-        normalized = _normalize_skill_name(tok)
-        if normalized in SKILLS_LIST:
-            found_skills.add(normalized)
-
-    return sorted(found_skills)
-
-def extract_visa_info(text: str) -> dict:
-    """Parse description for visa_sponsorship and open_to_intl flags."""
-    if not text:
-        return {"visa_sponsorship": False, "open_to_intl": False}
-        
-    text_lower = text.lower()
-    
-    visa_sponsorship = any(kw in text_lower for kw in VISA_SPONSORSHIP_KEYWORDS)
-    open_to_intl = any(kw in text_lower for kw in OPEN_TO_INTL_KEYWORDS)
-    
-    return {
-        "visa_sponsorship": visa_sponsorship,
-        "open_to_intl": open_to_intl
-    }
-
-def categorize_experience(title: str, description: str) -> str | None:
-    """
-    Returns student | junior | mid | senior | None.
-    None means no signal found — do NOT default to senior.
-    Title is the highest-confidence signal; description is fallback.
-    """
-    title_lower = (" " + (title or "").lower() + " ")
-
-    # Check title first (most reliable)
-    for level in ["student", "junior", "mid", "senior"]:
-        if any(kw in title_lower for kw in SENIORITY_RULES[level]):
-            return level
-
-    # Fallback to description — first 1500 chars only
-    desc_lower = (" " + (description or "").lower()[:1500] + " ")
-    for level in ["student", "junior", "mid", "senior"]:
-        if any(kw in desc_lower for kw in SENIORITY_RULES[level]):
-            return level
-
-    return None  # no default, no assumption
+DOMESTIC_SOURCES = {"rekrute", "stagiaires"}
 
 
 def _normalize_text_for_dedup(value: str | None) -> str:
@@ -212,13 +52,10 @@ def is_likely_duplicate(new_job: dict, existing_jobs: list[dict]) -> bool:
         ex_title = _normalize_text_for_dedup(existing.get("title"))
         if not ex_company or not ex_title:
             continue
-
         if new_company != ex_company:
             continue
-
         if new_title == ex_title:
             return True
-
         ratio = difflib.SequenceMatcher(None, new_title, ex_title).ratio()
         if ratio >= 0.93:
             return True
@@ -232,34 +69,50 @@ def build_job_profile_text(
     experience_level: Optional[str],
     description: str,
 ) -> str:
-    """
-    Build compact job profile text for stable embedding quality.
-    """
+    """Build compact job profile text for embedding. Prefixed for E5 model."""
     skills_text = ", ".join(required_skills[:25])
     level = experience_level or "unspecified"
-    desc = (description or "").strip()
-    # Keep core signal, avoid boilerplate overflow.
-    desc_snippet = desc[:1800]
+    desc_snippet = (description or "").strip()[:1800]
     return (
-        f"Role: {title}. "
+        f"passage: Role: {title}. "
         f"Required skills: {skills_text}. "
         f"Experience level: {level}. "
         f"Job details: {desc_snippet}"
     ).strip()
 
+
+def _write_job_skills(job_id: str, required: list[str], preferred: list[str]):
+    """Dual-write normalized skills to the job_skills table."""
+    if not supabase or not job_id:
+        return
+    rows = []
+    seen = set()
+    for skill in required:
+        s = (skill or "").strip()
+        if s and s.lower() not in seen:
+            seen.add(s.lower())
+            rows.append({"job_id": job_id, "skill": s, "is_required": True})
+    for skill in preferred:
+        s = (skill or "").strip()
+        if s and s.lower() not in seen:
+            seen.add(s.lower())
+            rows.append({"job_id": job_id, "skill": s, "is_required": False})
+    if rows:
+        try:
+            supabase.table("job_skills").insert(rows).execute()
+        except Exception as e:
+            print(f"  Warning: job_skills insert failed for {job_id}: {e}")
+
+
 def process_jobs(raw_jobs: list[dict], model) -> dict:
     """
     Process and insert jobs into the database.
-
-    Performance optimisations applied here:
-    - model is loaded ONCE outside this function and passed in.
-    - Two DB queries upfront replace N per-job queries (batch existence check
-      + single dedup window fetch).
-    - model.encode() is called ONCE on all candidate texts as a batch.
+    Uses LLM enrichment for skill extraction, classification, and eligibility.
+    Embedding model: intfloat/multilingual-e5-small (384-dim, multilingual).
     """
     if not supabase:
         print("Error: Supabase client not initialized")
-        return {"new": 0, "skipped": len(raw_jobs)}
+        return {"new": 0, "enriched": 0, "skipped": len(raw_jobs)}
 
     from data_cleaning import (
         normalize_location,
@@ -268,37 +121,42 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
         normalize_expires_at,
         job_region_from_location_and_source,
         extract_city_country,
-        categorize_experience_strict,
     )
+    from llm_enrichment import process_jobs_parallel, set_global_accessibility, extract_fields_from_llm
     from dateutil import parser as date_parser
 
     new_count = 0
+    enriched_count = 0
     skipped_count = 0
-    skills_fallback_count = 0
-    skills_extracted_count = 0
+    llm_success = 0
+    llm_fail = 0
 
     now = datetime.utcnow()
     scraped_at_iso = now.isoformat()
     now_iso = now.isoformat()
 
-    # --- BATCH QUERY 1: existence check for this whole batch ---
-    # Chunked into ≤100 IDs per query to stay under PostgREST's URL length limit.
-    # Passing 2000+ IDs in one .in_() call creates a URL > 20 KB which triggers
-    # a 400 "JSON could not be generated" error from Supabase.
-    source_ids = [str(j.get('source_id')) for j in raw_jobs if j.get('source_id')]
-    existing_source_ids: set[str] = set()
-    CHUNK = 100
+    # --- BATCH QUERY 1: existence check + category (to find existing jobs that need LLM enrichment) ---
+    source_ids = [str(j.get("source_id")).strip() for j in raw_jobs if j.get("source_id")]
+    existing_jobs_map: dict[str, dict] = {}  # source_id -> {id, category}
+    CHUNK = 30
     for i in range(0, len(source_ids), CHUNK):
-        chunk = source_ids[i: i + CHUNK]
-        res = (
-            supabase.table("jobs")
-            .select("source_id")
-            .in_("source_id", chunk)
-            .execute()
-        )
-        existing_source_ids.update(r["source_id"] for r in (res.data or []))
+        chunk = source_ids[i : i + CHUNK]
+        try:
+            res = (
+                supabase.table("jobs")
+                .select("id, source_id, category")
+                .in_("source_id", chunk)
+                .execute()
+            )
+            for r in res.data or []:
+                sid = (r.get("source_id") or "")
+                sid = sid.strip() if isinstance(sid, str) else str(sid).strip()
+                if sid:
+                    existing_jobs_map[sid] = {"id": r.get("id"), "category": r.get("category")}
+        except Exception as e:
+            print(f"  Warning: existence check failed for chunk ({e}); treating as no matches.")
 
-    # --- BATCH QUERY 2: recent jobs for fuzzy dedup (1 query, replaces N) ---
+    # --- BATCH QUERY 2: recent jobs for fuzzy dedup ---
     dedup_window_start = (now - timedelta(days=7)).isoformat()
     recent_res = (
         supabase.table("jobs")
@@ -309,26 +167,32 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
     )
     recent_jobs_cache = recent_res.data or []
     print(
-        f"Dedup cache loaded: {len(existing_source_ids)} existing IDs, "
+        f"Dedup cache loaded: {len(existing_jobs_map)} existing IDs, "
         f"{len(recent_jobs_cache)} recent jobs for fuzzy check."
     )
 
-    # --- PASS 1: filter & build payloads without embeddings yet ---
-    pending = []  # list of (payload, exp_level, embedding_text)
-    seen_in_batch: set[str] = set()  # guard against scrapers returning duplicates within one batch
+    # --- STAGE A: filter/dedup, collect new candidates + existing jobs that need LLM (category null) ---
+    candidates = []
+    update_candidates = []  # existing rows to enrich: same shape + db_job_id
+    seen_in_batch: set[str] = set()
+    skip_no_url = 0
+    skip_dup_id = 0
+    skip_fuzzy = 0
+    to_enrich = 0
 
     for job in raw_jobs:
         try:
             apply_url = (job.get('apply_url') or '').strip()
             if not apply_url or not apply_url.startswith(('http://', 'https://')):
+                skip_no_url += 1
                 skipped_count += 1
                 continue
 
-            sid = str(job.get('source_id') or '')
-            if sid in existing_source_ids or sid in seen_in_batch:
+            sid = str(job.get("source_id") or "").strip()
+            if sid in seen_in_batch:
+                skip_dup_id += 1
                 skipped_count += 1
                 continue
-            seen_in_batch.add(sid)
 
             title = html.unescape((job.get('title') or 'Unknown Title').strip())
             company = (job.get('company') or 'Unknown Company').strip()
@@ -338,20 +202,91 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             if not raw_desc or len(raw_desc) < 20:
                 raw_desc = f"Job opportunity for {title} at {company}. This is an active hiring position."
 
-            req_skills = job.get('required_skills') or job.get('skills_hint') or []
-            if not req_skills or not isinstance(req_skills, list):
-                req_skills = extract_skills(title + " " + raw_desc)
-            if isinstance(req_skills, list) and len(req_skills) <= 2:
-                extra = extract_skills(title + " " + raw_desc)
-                req_skills = list(dict.fromkeys(list(req_skills) + extra))
-            if not req_skills:
-                req_skills = ["communication", "teamwork"]
-                skills_fallback_count += 1
-            else:
-                skills_extracted_count += len(req_skills)
+            existing = existing_jobs_map.get(sid)
+            if existing is not None:
+                # Already in DB: skip if already enriched, else add to update_candidates for LLM + update
+                cat = existing.get("category")
+                if cat is not None and str(cat).strip() != "":
+                    skip_dup_id += 1
+                    skipped_count += 1
+                    continue
+                seen_in_batch.add(sid)
+                source_name = (job.get("source") or "unknown").lower().strip()
+                is_domestic = source_name in DOMESTIC_SOURCES
+                update_candidates.append({
+                    "title": title,
+                    "company": company,
+                    "raw_desc": raw_desc,
+                    "source_name": source_name,
+                    "is_domestic": is_domestic,
+                    "job": job,
+                    "apply_url": apply_url,
+                    "db_job_id": existing["id"],
+                })
+                to_enrich += 1
+                continue
 
-            full_text = f"{title} {raw_desc}"
-            visa_info = extract_visa_info(full_text)
+            if is_likely_duplicate(
+                {"company": company, "title": title, "source": job.get("source")},
+                recent_jobs_cache,
+            ):
+                skip_fuzzy += 1
+                skipped_count += 1
+                continue
+
+            seen_in_batch.add(sid)
+            source_name = (job.get("source") or "unknown").lower().strip()
+            is_domestic = source_name in DOMESTIC_SOURCES
+
+            candidates.append({
+                "title": title,
+                "company": company,
+                "raw_desc": raw_desc,
+                "source_name": source_name,
+                "is_domestic": is_domestic,
+                "job": job,
+                "apply_url": apply_url,
+            })
+        except Exception as e:
+            print(f"Error filtering job {job.get('source_id')}: {e}")
+            skipped_count += 1
+
+    print(f"Stage A: {len(candidates)} new candidates, {len(update_candidates)} existing to enrich ({skipped_count} skipped)")
+    if skipped_count > 0 or to_enrich > 0:
+        print(f"  Skip reasons: no/invalid apply_url={skip_no_url}, duplicate source_id={skip_dup_id}, fuzzy_dup={skip_fuzzy}")
+
+    # --- STAGE B: parallel LLM enrichment (new candidates + existing to enrich) ---
+    all_for_llm = candidates + update_candidates
+    llm_inputs = [
+        {"title": c["title"], "description": c["raw_desc"], "is_domestic": c["is_domestic"]}
+        for c in all_for_llm
+    ]
+    llm_results = process_jobs_parallel(llm_inputs)
+    n_new = len(candidates)
+    llm_results_new = llm_results[:n_new]
+    llm_results_update = llm_results[n_new:]
+
+    # --- STAGE C: build payloads from candidates + LLM results (insert and update) ---
+    pending = []  # list of (payload, embedding_text, required_skills, preferred_skills)
+    pending_updates = []  # list of (payload, embedding_text, required_skills, preferred_skills, db_job_id)
+
+    for candidate, llm_result in zip(candidates, llm_results_new):
+        try:
+            job = candidate["job"]
+            title = candidate["title"]
+            company = candidate["company"]
+            raw_desc = candidate["raw_desc"]
+            is_domestic = candidate["is_domestic"]
+            apply_url = candidate["apply_url"]
+
+            if llm_result is not None:
+                llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result)
+                llm_success += 1
+            else:
+                llm_fields = {}
+                required_skills = []
+                preferred_skills = []
+                llm_fail += 1
 
             posted_at_iso, default_expires_iso = parse_posted_at(job.get('posted_at'), now_iso)
             expires_at_iso = normalize_expires_at(job.get('expires_at'), posted_at_iso) or default_expires_iso
@@ -375,17 +310,27 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             else:
                 city, country_code = extract_city_country(loc_normalized, job.get("source"))
 
+            if is_domestic:
+                job_region = "MA"
+                country_code = country_code or "MA"
+            else:
+                llm_location = (llm_result.get("location") or {}) if llm_result else {}
+                job_region = llm_location.get("job_region") or job_region_from_location_and_source(loc_normalized, job.get("source"))
+                if not city and llm_location.get("city"):
+                    city = llm_location["city"]
+                if not country_code and llm_location.get("country_code"):
+                    country_code = llm_location["country_code"]
+
             payload = {
                 "title": title,
                 "company": company,
                 "company_logo_url": logo_url_val,
-                "location": loc_normalized,
                 "is_remote": bool(job.get('is_remote', False)),
                 "type": job.get('type', 'full-time'),
                 "description_text": raw_desc[:5000] if raw_desc else None,
-                "required_skills": req_skills,
-                "visa_sponsorship": bool(job.get('visa_sponsorship', visa_info['visa_sponsorship'])),
-                "open_to_intl": bool(job.get('open_to_intl', visa_info['open_to_intl'])),
+                "required_skills": llm_fields.get("required_skills") or [],
+                "visa_sponsorship": llm_fields.get("visa_sponsorship", False),
+                "open_to_intl": llm_fields.get("open_to_intl", False),
                 "apply_url": apply_url,
                 "apply_email": job.get('apply_email'),
                 "source": job.get('source', 'unknown'),
@@ -394,72 +339,194 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
                 "scraped_at": scraped_at_iso,
                 "is_active": True,
                 "expires_at": expires_at_iso,
+                "job_region": job_region,
+                "category": llm_fields.get("category"),
+                "subcategory": llm_fields.get("subcategory"),
+                "experience_level": llm_fields.get("experience_level"),
+                "job_type": llm_fields.get("job_type"),
+                "globally_accessible": True,
             }
-            payload["job_region"] = job_region_from_location_and_source(loc_normalized, job.get("source"))
+
             if city is not None:
                 payload["city"] = city
             if country_code is not None:
                 payload["country_code"] = country_code
-            if job.get('remote_type'):
+            if llm_fields.get("remote_type"):
+                payload["remote_type"] = llm_fields["remote_type"]
+            elif job.get('remote_type'):
                 payload["remote_type"] = job.get('remote_type')
 
-            # Fuzzy dedup against in-memory cache — no extra DB round-trip
-            if is_likely_duplicate(
-                {"company": company, "title": title, "source": job.get("source")},
-                recent_jobs_cache,
-            ):
-                skipped_count += 1
-                continue
-
-            exp_level = job.get('gh_level') or job.get('experience_level_hint')
-            if exp_level is None:
-                exp_level = categorize_experience_strict(title, raw_desc)
+            if llm_result is not None:
+                set_global_accessibility(payload, llm_result)
 
             embedding_text = build_job_profile_text(
                 title=title,
-                required_skills=req_skills,
-                experience_level=exp_level,
+                required_skills=payload["required_skills"],
+                experience_level=payload["experience_level"],
                 description=raw_desc,
             )
-            pending.append((payload, exp_level, embedding_text))
+            pending.append((payload, embedding_text, required_skills, preferred_skills))
 
         except Exception as e:
-            print(f"Error preparing job {job.get('source_id')}: {e}")
+            print(f"Error building payload for {candidate['job'].get('source_id')}: {e}")
             skipped_count += 1
 
-    print(
-        f"Skill extraction stats: extracted={skills_extracted_count}, "
-        f"fallback={skills_fallback_count}"
-    )
+    # Build payloads for existing jobs to enrich (same logic, append to pending_updates with db_job_id)
+    for candidate, llm_result in zip(update_candidates, llm_results_update):
+        try:
+            job = candidate["job"]
+            title = candidate["title"]
+            company = candidate["company"]
+            raw_desc = candidate["raw_desc"]
+            is_domestic = candidate["is_domestic"]
+            apply_url = candidate["apply_url"]
+            db_job_id = candidate["db_job_id"]
 
-    if not pending:
-        return {"new": new_count, "skipped": skipped_count}
+            if llm_result is not None:
+                llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result)
+                llm_success += 1
+            else:
+                llm_fields = {}
+                required_skills = []
+                preferred_skills = []
+                llm_fail += 1
 
-    # --- BATCH ENCODE: all texts in one model call ---
-    texts = [emb_text for _, _, emb_text in pending]
-    print(f"Batch-encoding {len(texts)} jobs...")
-    vectors = model.encode(texts, batch_size=64, show_progress_bar=False)
+            posted_at_iso, default_expires_iso = parse_posted_at(job.get('posted_at'), now_iso)
+            expires_at_iso = normalize_expires_at(job.get('expires_at'), posted_at_iso) or default_expires_iso
+            if expires_at_iso == posted_at_iso:
+                try:
+                    dt = date_parser.parse(posted_at_iso)
+                    expires_at_iso = (dt + timedelta(days=60)).isoformat()
+                except Exception:
+                    expires_at_iso = (now + timedelta(days=60)).isoformat()
+
+            logo_url_val = job.get('company_logo_url') or job.get('logo_url')
+            if not logo_url_val or not isinstance(logo_url_val, str) or len(logo_url_val) < 5:
+                logo_url_val = None
+
+            loc_normalized = normalize_location(job.get('location'))
+            scraper_city = job.get('city')
+            scraper_country = job.get('country_code')
+            if scraper_city is not None or scraper_country is not None:
+                city = scraper_city
+                country_code = scraper_country
+            else:
+                city, country_code = extract_city_country(loc_normalized, job.get("source"))
+
+            if is_domestic:
+                job_region = "MA"
+                country_code = country_code or "MA"
+            else:
+                llm_location = (llm_result.get("location") or {}) if llm_result else {}
+                job_region = llm_location.get("job_region") or job_region_from_location_and_source(loc_normalized, job.get("source"))
+                if not city and llm_location.get("city"):
+                    city = llm_location["city"]
+                if not country_code and llm_location.get("country_code"):
+                    country_code = llm_location["country_code"]
+
+            payload = {
+                "title": title,
+                "company": company,
+                "company_logo_url": logo_url_val,
+                "is_remote": bool(job.get('is_remote', False)),
+                "type": job.get('type', 'full-time'),
+                "description_text": raw_desc[:5000] if raw_desc else None,
+                "required_skills": llm_fields.get("required_skills") or [],
+                "visa_sponsorship": llm_fields.get("visa_sponsorship", False),
+                "open_to_intl": llm_fields.get("open_to_intl", False),
+                "apply_url": apply_url,
+                "apply_email": job.get('apply_email'),
+                "source": job.get('source', 'unknown'),
+                "source_id": str(job.get('source_id')),
+                "posted_at": posted_at_iso,
+                "scraped_at": scraped_at_iso,
+                "is_active": True,
+                "expires_at": expires_at_iso,
+                "job_region": job_region,
+                "category": llm_fields.get("category"),
+                "subcategory": llm_fields.get("subcategory"),
+                "experience_level": llm_fields.get("experience_level"),
+                "job_type": llm_fields.get("job_type"),
+                "globally_accessible": True,
+            }
+            if city is not None:
+                payload["city"] = city
+            if country_code is not None:
+                payload["country_code"] = country_code
+            if llm_fields.get("remote_type"):
+                payload["remote_type"] = llm_fields["remote_type"]
+            elif job.get('remote_type'):
+                payload["remote_type"] = job.get('remote_type')
+            if llm_result is not None:
+                set_global_accessibility(payload, llm_result)
+
+            embedding_text = build_job_profile_text(
+                title=title,
+                required_skills=payload["required_skills"],
+                experience_level=payload["experience_level"],
+                description=raw_desc,
+            )
+            pending_updates.append((payload, embedding_text, required_skills, preferred_skills, db_job_id))
+        except Exception as e:
+            print(f"Error building update payload for {candidate['job'].get('source_id')}: {e}")
+            skipped_count += 1
+
+    print(f"LLM enrichment: {llm_success} success, {llm_fail} failed")
+
+    if not pending and not pending_updates:
+        return {"new": new_count, "enriched": enriched_count, "skipped": skipped_count}
+
+    # --- BATCH ENCODE (new + to-update) ---
+    all_texts = [emb_text for _, emb_text, _, _ in pending] + [emb_text for _, emb_text, _, _, _ in pending_updates]
+    print(f"Batch-encoding {len(all_texts)} jobs with multilingual-e5-small...")
+    vectors = model.encode(all_texts, batch_size=64, show_progress_bar=False)
     print("Batch encoding done.")
 
-    # --- PASS 2: attach embeddings and insert ---
-    for (payload, exp_level, _), vector in zip(pending, vectors):
+    n_insert = len(pending)
+    vectors_insert = vectors[:n_insert]
+    vectors_update = vectors[n_insert:]
+
+    # --- INSERT new jobs ---
+    for (payload, _, req_skills, pref_skills), vector in zip(pending, vectors_insert):
         try:
-            payload['description_embedding'] = vector.tolist()
-            payload['experience_level'] = exp_level
-            supabase.table('jobs').insert(payload).execute()
-            print(f"[OK] Inserted job {payload.get('source_id')} with ML embeddings.")
+            payload["description_embedding"] = vector.tolist()
+            result = supabase.table("jobs").insert(payload).execute()
+            job_id = result.data[0]["id"] if result.data else None
+            _write_job_skills(job_id, req_skills, pref_skills)
+            print(f"[OK] Inserted job {payload.get('source_id')}")
             new_count += 1
         except Exception as e:
-            print(f"Error inserting job {payload.get('source_id')}: {e}")
+            err_str = str(e)
+            if "23505" in err_str or "duplicate key" in err_str.lower():
+                skipped_count += 1
+                print(f"Skipped duplicate: {payload.get('source_id')}")
+            else:
+                print(f"Error inserting job {payload.get('source_id')}: {e}")
+                skipped_count += 1
+
+    # --- UPDATE existing jobs (enrich with LLM + embedding) ---
+    for (payload, _, req_skills, pref_skills, db_job_id), vector in zip(pending_updates, vectors_update):
+        try:
+            payload["description_embedding"] = vector.tolist()
+            supabase.table("jobs").update(payload).eq("id", db_job_id).execute()
+            try:
+                supabase.table("job_skills").delete().eq("job_id", db_job_id).execute()
+            except Exception:
+                pass
+            _write_job_skills(db_job_id, req_skills, pref_skills)
+            enriched_count += 1
+            print(f"[OK] Enriched existing job {payload.get('source_id')} (id={db_job_id})")
+        except Exception as e:
+            print(f"Error updating job {db_job_id}: {e}")
             skipped_count += 1
 
-    return {"new": new_count, "skipped": skipped_count}
+    return {"new": new_count, "enriched": enriched_count, "skipped": skipped_count}
+
 
 def deactivate_expired():
     """Marks is_active = false for expired jobs"""
     if not supabase:
         return
-        
     try:
         now_iso = datetime.utcnow().isoformat()
         response = supabase.table('jobs') \
@@ -467,17 +534,7 @@ def deactivate_expired():
             .lt('expires_at', now_iso) \
             .eq('is_active', True) \
             .execute()
-            
         deactivated = len(response.data) if response.data else 0
         print(f"Deactivated {deactivated} expired jobs.")
     except Exception as e:
         print(f"Error deactivating expired jobs: {e}")
-
-if __name__ == "__main__":
-    # Test skill extraction
-    sample = "We are looking for a Python and React developer. Must know TypeScript."
-    print("Skills:", extract_skills(sample))
-    
-    # Test visa extraction
-    sample_visa = "We offer visa sponsorship and relocation assistance for global candidates."
-    print("Visa:", extract_visa_info(sample_visa))

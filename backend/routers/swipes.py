@@ -74,20 +74,20 @@ async def get_saved_jobs(user: dict = Depends(get_current_user)):
     user_id = user["id"]
     
     try:
-        swipes_res = get_supabase().table("swipes").select("job_id, created_at").eq("user_id", user_id).eq("direction", "right").order("created_at", desc=True).execute()
+        swipes_res = get_supabase().table("swipes").select("job_id, created_at, status, applied_at").eq("user_id", user_id).eq("direction", "right").order("created_at", desc=True).execute()
         rows = swipes_res.data or []
         if not rows:
             return {"data": []}
-        
+
         job_ids = [r["job_id"] for r in rows if r.get("job_id")]
         if not job_ids:
             return {"data": []}
-        
+
         jobs_res = get_supabase().table("jobs").select(
-            "id, title, company, company_logo_url, location, city, apply_url, apply_email, posted_at, experience_level, job_region, is_remote"
+            "id, title, company, company_logo_url, city, country_code, apply_url, apply_email, posted_at, experience_level, job_region, is_remote, is_active"
         ).in_("id", job_ids).execute()
         jobs_by_id = {j["id"]: j for j in (jobs_res.data or []) if isinstance(j, dict) and j.get("id")}
-        
+
         saved_jobs = []
         for row in rows:
             jid = row.get("job_id")
@@ -96,6 +96,8 @@ async def get_saved_jobs(user: dict = Depends(get_current_user)):
                 continue
             job = dict(job)
             job["saved_at"] = row.get("created_at")
+            job["status"] = row.get("status") or "saved"
+            job["applied_at"] = row.get("applied_at")
             saved_jobs.append(job)
         
         saved_jobs.sort(key=lambda x: (x.get("saved_at") or ""), reverse=True)

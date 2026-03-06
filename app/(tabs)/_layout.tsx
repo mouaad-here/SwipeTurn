@@ -23,6 +23,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Search',
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
@@ -38,10 +44,6 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="index"
-        options={{ href: null }}
-      />
-      <Tabs.Screen
-        name="explore"
         options={{ href: null }}
       />
     </Tabs>

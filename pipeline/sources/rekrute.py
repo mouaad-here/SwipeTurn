@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 import time
 import random
@@ -6,6 +7,7 @@ import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from patchright.sync_api import sync_playwright
+from typing import Any
 
 
 def _extract_desc_snippet(card, title: str) -> str:
@@ -24,6 +26,38 @@ def _extract_desc_snippet(card, title: str) -> str:
         rest = full.replace(title, "").strip()
         if len(rest) > 50:
             return rest[:2000]
+    return ""
+
+
+def _normalize_rekrute_url(href: str) -> str:
+    """Turn relative or absolute Rekrute href into full URL."""
+    if not href or href.startswith("#") or "javascript" in href.lower():
+        return ""
+    if href.startswith(("http://", "https://")):
+        return href
+    return "https://www.rekrute.com" + (href if href.startswith("/") else "/" + href)
+
+
+def _extract_job_link_from_card(card) -> str:
+    """Get job detail URL from card: prefer h2 > a, then any job-like link in the card."""
+    title_elem = card.find("h2")
+    if title_elem:
+        a = title_elem.find("a")
+        if a and a.get("href"):
+            href = (a["href"] or "").strip()
+            if href:
+                url = _normalize_rekrute_url(href)
+                if url:
+                    return url
+    for a in card.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        if not href:
+            continue
+        # Job pages: /offre-..., ...-emploi-..., or *.html
+        if "/offre-" in href or "-emploi-" in href or (href.endswith(".html") and len(href) > 10):
+            url = _normalize_rekrute_url(href)
+            if url:
+                return url
     return ""
 
 
@@ -56,10 +90,154 @@ def _extract_company_from_card(card, link: str) -> str:
     return ""
 
 
+def _parse_json_ld_job_posting(soup: BeautifulSoup) -> dict[str, Any]:
+    """Extract JobPosting from application/ld+json. Returns dict with datePosted, experienceRequirements, employmentType, industry, addressLocality, validThrough."""
+    out: dict[str, Any] = {}
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            raw = script.string
+            if not raw:
+                continue
+            data = json.loads(raw)
+            if isinstance(data, dict) and data.get("@type") == "JobPosting":
+                out["datePosted"] = data.get("datePosted")
+                out["experienceRequirements"] = data.get("experienceRequirements")
+                out["employmentType"] = data.get("employmentType")
+                out["industry"] = data.get("industry")
+                job_loc = data.get("jobLocation") or {}
+                addr = job_loc.get("address") if isinstance(job_loc, dict) else {}
+                if isinstance(addr, dict):
+                    out["addressLocality"] = addr.get("addressLocality")
+                out["validThrough"] = data.get("validThrough")
+                break
+            if isinstance(data, dict) and "@graph" in data:
+                for node in data.get("@graph", []):
+                    if isinstance(node, dict) and node.get("@type") == "JobPosting":
+                        out["datePosted"] = node.get("datePosted")
+                        out["experienceRequirements"] = node.get("experienceRequirements")
+                        out["employmentType"] = node.get("employmentType")
+                        out["industry"] = node.get("industry")
+                        job_loc = node.get("jobLocation") or {}
+                        addr = job_loc.get("address") if isinstance(job_loc, dict) else {}
+                        if isinstance(addr, dict):
+                            out["addressLocality"] = addr.get("addressLocality")
+                        out["validThrough"] = node.get("validThrough")
+                        break
+                if out:
+                    break
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return out
+
+
+def _extract_h2_sections(soup: BeautifulSoup) -> dict[str, str]:
+    """Extract sections by h2 heading (Entreprise, Culture, Poste, Profil recherché, Adresse, Traits). Exclude #matching4K and content containing 4K."""
+    sections: dict[str, str] = {}
+    # Remove 4K block so it's not included when we walk siblings
+    for bad in soup.select("#matching4K"):
+        bad.decompose()
+    for h2 in soup.find_all("h2"):
+        title = (h2.get_text(strip=True) or "").strip()
+        if not title:
+            continue
+        # Collect text from following siblings until next h2
+        parts = []
+        for sib in h2.find_next_siblings():
+            if sib.name == "h2":
+                break
+            text = sib.get_text(separator=" ", strip=True) if hasattr(sib, "get_text") else ""
+            if text and "4K" not in text[:100]:
+                parts.append(text)
+        if parts:
+            combined = " ".join(parts).strip()
+            if len(combined) > 20:
+                sections[title] = combined
+    return sections
+
+
+def _parse_rekrute_detail_page(html: str, apply_url: str) -> dict[str, Any]:
+    """
+    Parse Rekrute job detail page: JSON-LD + h2 sections.
+    Returns dict with: description, city, type, is_remote, posted_at, experience_level_hint (optional).
+    """
+    result: dict[str, Any] = {}
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 1. JSON-LD
+        ld = _parse_json_ld_job_posting(soup)
+        if ld.get("datePosted"):
+            dp = ld["datePosted"]
+            if isinstance(dp, str) and re.match(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}", dp):
+                try:
+                    result["posted_at"] = datetime.strptime(dp, "%Y-%m-%d %H:%M:%S").isoformat()
+                except ValueError:
+                    result["posted_at"] = dp
+            else:
+                result["posted_at"] = dp
+        if ld.get("addressLocality"):
+            result["city"] = ld["addressLocality"]
+        emp_type = (ld.get("employmentType") or "").strip().upper()
+        if emp_type:
+            result["type"] = "full-time" if emp_type == "CDI" else "contract" if emp_type == "CDD" else "full-time"
+        exp_req = ld.get("experienceRequirements") or ""
+        if exp_req and isinstance(exp_req, str):
+            result["experience_level_hint"] = _experience_from_rekrute_text(exp_req)
+
+        # 2. H2 sections
+        sec = _extract_h2_sections(soup)
+        poste = sec.get("Poste :") or ""
+        profil = sec.get("Profil recherché :") or ""
+        entreprise = sec.get("Entreprise :") or ""
+        culture = sec.get("Culture de l'entreprise :") or ""
+        adresse = sec.get("Adresse de notre siège :") or ""
+        if adresse and not result.get("city"):
+            result["city"] = adresse.split()[-1] if adresse.split() else None
+        desc_parts = [p for p in [poste, profil, entreprise, culture] if p]
+        result["description"] = "\n\n".join(desc_parts) if desc_parts else ""
+
+        # 3. Télétravail from page (fallback if not in JSON-LD)
+        page_text = soup.get_text()
+        if "télétravail" in page_text.lower():
+            result["is_remote"] = "télétravail : oui" in page_text.lower() or "télétravail: oui" in page_text.lower()
+        if "is_remote" not in result:
+            result["is_remote"] = False
+
+        # 4. Posted date from .newjob if not from JSON-LD
+        if "posted_at" not in result:
+            span = soup.select_one(".newjob")
+            if span:
+                txt = span.get_text(separator=" ", strip=True)
+                result["posted_at"] = _parse_relative_date(txt) or _parse_absolute_date(txt)
+    except Exception:
+        pass
+    return result
+
+
+def _experience_from_rekrute_text(text: str) -> str | None:
+    """Map Rekrute experienceRequirements string to student/junior/mid/senior."""
+    t = (text or "").lower()
+    if any(k in t for k in ("stagiaire", "stage", "intern", "pfe", "étudiant", "etudiant")):
+        return "student"
+    if any(k in t for k in ("junior", "débutant", "debutant", "0-2", "1-2")):
+        return "junior"
+    if any(k in t for k in ("intermédiaire", "intermediaire", "3 à 5", "3-5")):
+        return "mid"
+    if any(k in t for k in ("senior", "lead", "principal", "manager", "5+", "6 ans", "7 ans")):
+        return "senior"
+    return None
+
+
 def _fetch_job_description(apply_url: str, timeout: int = 10) -> str:
-    """Fetch full job description from the job detail page."""
+    """Fetch full job description from the job detail page (legacy: returns plain string)."""
+    detail = _fetch_job_detail_structured(apply_url, timeout)
+    return detail.get("description", "")
+
+
+def _fetch_job_detail_structured(apply_url: str, timeout: int = 10) -> dict[str, Any]:
+    """Fetch job detail page and return structured data (description, city, type, is_remote, posted_at, experience_level_hint)."""
     if not apply_url or not apply_url.startswith("http"):
-        return ""
+        return {}
     try:
         r = requests.get(
             apply_url,
@@ -67,23 +245,9 @@ def _fetch_job_description(apply_url: str, timeout: int = 10) -> str:
             timeout=timeout,
         )
         r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        parts = []
-        for tag in soup.find_all(["section", "div", "article"]):
-            cls = tag.get("class") or []
-            cls_str = " ".join(cls).lower() if isinstance(cls, list) else str(cls).lower()
-            if any(x in cls_str for x in ["description", "poste", "entreprise", "profil", "annonce", "content"]):
-                text = tag.get_text(separator=" ", strip=True)
-                if len(text) > 100 and "4K" not in text[:50]:
-                    parts.append(text)
-        if parts:
-            return "\n\n".join(parts[:6])
-        main = soup.find("main") or soup.find("article") or soup.find(class_=re.compile(r"detail|content|annonce", re.I))
-        if main:
-            return main.get_text(separator=" ", strip=True)
-        return ""
+        return _parse_rekrute_detail_page(r.text, apply_url)
     except Exception:
-        return ""
+        return {}
 
 
 def _parse_relative_date(text: str) -> str | None:
@@ -205,7 +369,9 @@ def fetch_rekrute(max_pages: int = MAX_PAGES, fetch_full_descriptions: bool = Tr
                         continue
                     
                     title = title_elem.text.strip()
-                    link = "https://www.rekrute.com" + title_elem.find('a')['href'] if title_elem.find('a') else ""
+                    link = _extract_job_link_from_card(card)
+                    if not link or not link.startswith(("http://", "https://")):
+                        continue
                     
                     company_elem = card.find('img', class_='logo')
                     company = (company_elem.get('title') or company_elem.get('alt') or "").strip() if company_elem else ""
@@ -214,26 +380,40 @@ def fetch_rekrute(max_pages: int = MAX_PAGES, fetch_full_descriptions: bool = Tr
                     company = company or "Company"
                     logo = ("https://www.rekrute.com" + company_elem["src"]) if company_elem and company_elem.get("src") else ""
                     
-                    # Description: always fetch full from detail page when possible
                     desc_snippet = _extract_desc_snippet(card, title)
                     posted_at = _extract_posted_at(card.get_text(" ", strip=True))
                     if posted_at:
                         posted_at_real_count += 1
+                    is_remote = "télétravail" in card.text.lower() or "remote" in card.text.lower()
+                    remote_type = "FULLY_REMOTE" if is_remote else None
+                    contract_type = _extract_contract_type(card.get_text(" ", strip=True))
+                    experience_hint = _extract_experience_hint(card.get_text(" ", strip=True), title)
+                    city = None
+
                     if fetch_full_descriptions and link:
-                        full_desc = _fetch_job_description(link)
-                        if full_desc:
-                            desc_snippet = full_desc
+                        detail = _fetch_job_detail_structured(link)
+                        if detail:
+                            if detail.get("description"):
+                                desc_snippet = detail["description"]
+                            if detail.get("posted_at"):
+                                posted_at = detail["posted_at"]
+                            if detail.get("city"):
+                                city = detail["city"]
+                            if "type" in detail and detail["type"]:
+                                contract_type = detail["type"]
+                            if "is_remote" in detail:
+                                is_remote = detail["is_remote"]
+                                remote_type = "FULLY_REMOTE" if is_remote else None
+                            if detail.get("experience_level_hint"):
+                                experience_hint = detail["experience_level_hint"]
                         time.sleep(1.2)
                     if not posted_at:
                         posted_at = datetime.utcnow().isoformat()
                         posted_at_fallback_count += 1
-                    
-                    is_remote = "télétravail" in card.text.lower() or "remote" in card.text.lower()
-                    remote_type = "FULLY_REMOTE" if "télétravail" in card.text.lower() or "remote" in card.text.lower() else None
+
                     stable_id = hashlib.sha256(link.encode()).hexdigest()[:12] if link else ""
                     source_id = f"rek_{stable_id}" if stable_id else f"rek_{hashlib.sha256(f'{title}|{company}'.encode()).hexdigest()[:12]}"
-                    experience_hint = _extract_experience_hint(card.get_text(" ", strip=True), title)
-                    
+
                     job_entry = {
                         "title": title,
                         "company": company,
@@ -241,13 +421,17 @@ def fetch_rekrute(max_pages: int = MAX_PAGES, fetch_full_descriptions: bool = Tr
                         "location": "Morocco",
                         "is_remote": is_remote,
                         "remote_type": remote_type,
-                        "type": _extract_contract_type(card.get_text(" ", strip=True)),
+                        "type": contract_type,
                         "description": desc_snippet,
                         "apply_url": link,
                         "source": "rekrute",
                         "source_id": source_id,
                         "posted_at": posted_at,
+                        "job_region": "MA",
+                        "country_code": "MA",
                     }
+                    if city:
+                        job_entry["city"] = city
                     if experience_hint:
                         job_entry["experience_level_hint"] = experience_hint
                     jobs.append(job_entry)

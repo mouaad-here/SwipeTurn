@@ -4,7 +4,6 @@ import importlib
 import os
 import sys
 
-# Ensure pipeline dir is in path to import processor and sources
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from processor import process_jobs, deactivate_expired
@@ -23,10 +22,10 @@ SOURCES = [
 ]
 
 def _load_model():
-    """Load the embedding model once per scheduler process."""
-    print("Loading embedding model 'all-MiniLM-L6-v2' (once for all sources)...")
+    """Load the multilingual embedding model once per scheduler process."""
+    print("Loading embedding model 'intfloat/multilingual-e5-small' (once for all sources)...")
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    model = SentenceTransformer('intfloat/multilingual-e5-small')
     print("Model loaded.")
     return model
 
@@ -73,10 +72,8 @@ if __name__ == "__main__":
 
     print("Starting Job Pipeline Scheduler")
 
-    # Load model once — reused on every scheduled run
     _model = _load_model()
 
-    # Run once immediately, then every 12 hours
     run_pipeline(_model)
     schedule.every(12).hours.do(run_pipeline, _model)
 

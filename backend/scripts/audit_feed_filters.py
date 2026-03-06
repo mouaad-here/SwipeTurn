@@ -34,29 +34,18 @@ from supabase import create_client
 
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-# Same as backend/routers/jobs.py (source of truth)
-ALLOWED_EXPERIENCE_GLOBAL = {
-    "student": ["student"],
-    "junior": ["student", "junior"],
-    "mid": ["junior", "mid"],
-    "senior": ["mid", "senior", "senior_lead"],
-}
-ALLOWED_EXPERIENCE_MOROCCO = {
-    "student": ["student"],
-    "junior": ["student", "mid"],
-    "mid": ["mid"],
-    "senior": ["mid", "senior", "senior_lead"],
-}
+from constants import get_seniority_filter, SENIORITY_FILTER
 
-VALID_JOB_REGIONS = {"morocco", "global"}
-VALID_EXPERIENCE_LEVELS = {"student", "junior", "mid", "senior", "senior_lead"}
+# DB stores job_region as "MA" for Morocco; we normalize to lowercase in checks
+VALID_JOB_REGIONS = {"ma", "global"}
+VALID_EXPERIENCE_LEVELS = {"intern", "student", "junior", "mid", "senior", "lead", "unknown"}
 
 
 def fetch_active_jobs():
-    """Fetch active jobs with job_region and experience_level. If job_region column is missing, fetch without it and derive region from location/source."""
-    cols = "id, experience_level, location, source"
+    """Fetch active jobs with job_region, experience_level, city, country_code. Fallback derive job_region from source if column missing."""
+    cols = "id, experience_level, city, country_code, source"
     try:
-        res = supabase.table("jobs").select("id, job_region, experience_level, location, source").eq(
+        res = supabase.table("jobs").select("id, job_region, experience_level, city, country_code, source, globally_accessible, open_to_intl").eq(
             "is_active", True
         ).execute()
         return res.data or []
@@ -64,11 +53,9 @@ def fetch_active_jobs():
         if "job_region" in str(e) or "does not exist" in str(e).lower():
             res = supabase.table("jobs").select(cols).eq("is_active", True).execute()
             data = res.data or []
-            # Derive job_region like fallback in jobs.py
             for j in data:
-                loc = (j.get("location") or "").lower()
                 src = (j.get("source") or "").lower()
-                j["job_region"] = "morocco" if ("morocco" in loc or "maroc" in loc or src in ("rekrute", "stagiaires")) else "global"
+                j["job_region"] = "MA" if src in ("rekrute", "stagiaires") else "global"
             return data
         raise
 
@@ -83,7 +70,8 @@ def audit_data_quality(jobs):
     invalid_exp = 0
 
     for j in jobs:
-        r = (j.get("job_region") or "").strip().lower() or None
+        r_raw = (j.get("job_region") or "").strip()
+        r = r_raw.lower() if r_raw else None
         e = (j.get("experience_level") or "").strip().lower() or None
 
         if r is None:
@@ -123,40 +111,60 @@ def audit_data_quality(jobs):
 
 
 def audit_matrices():
-    """Echo the two matrices for diff against jobs.py."""
+    """Echo seniority filter (strict: one level per user) used by jobs feed."""
     print("\n--- 2. Matrix consistency (feed source of truth) ---")
-    print("  ALLOWED_EXPERIENCE_GLOBAL:")
-    for k, v in ALLOWED_EXPERIENCE_GLOBAL.items():
-        print(f"    {k}: {v}")
-    print("  ALLOWED_EXPERIENCE_MOROCCO:")
-    for k, v in ALLOWED_EXPERIENCE_MOROCCO.items():
+    print("  SENIORITY_FILTER (allowed experience_level per user selection):")
+    for k, v in SENIORITY_FILTER.items():
         print(f"    {k}: {v}")
 
 
 def spot_check_feed(jobs):
-    """Simulate feed filter for a few (geography, user_seniority); assert every returned job has allowed experience_level and job_region."""
+    """Simulate feed filter for (geography, user_seniority). For global: also require globally_accessible and open_to_intl so we only show jobs user can apply for."""
     print("\n--- 3. Spot-check feed rules ---")
+    # expected_region: "ma" = Morocco only, "global" = global jobs (must have globally_accessible & open_to_intl), None = both
     cases = [
-        ("morocco", "junior", ALLOWED_EXPERIENCE_MOROCCO["junior"], "morocco"),
-        ("global", "mid", ALLOWED_EXPERIENCE_GLOBAL["mid"], "global"),
-        ("both", "senior", ALLOWED_EXPERIENCE_GLOBAL["senior"], None),
+        ("morocco", "junior", "ma"),
+        ("global", "mid", "global"),
+        ("both", "senior", None),
     ]
     all_ok = True
-    for geo, seniority, allowed_list, expected_region in cases:
-        allowed = set(allowed_list)
-        # Same as feed: region filter (if morocco/global) + experience_level in allowed
-        returned = [
-            j for j in jobs
-            if (expected_region is None or (j.get("job_region") or "").lower() == expected_region)
-            and (j.get("experience_level") or "").lower() in allowed
-        ]
-        bad_level = [j for j in returned if (j.get("experience_level") or "").lower() not in allowed]
-        bad_region = [j for j in returned if expected_region and (j.get("job_region") or "").lower() != expected_region]
+    for geo, seniority, expected_region in cases:
+        allowed_levels = get_seniority_filter(seniority)
+        allowed = set(allowed_levels)
+        if expected_region == "ma":
+            returned = [
+                j for j in jobs
+                if (j.get("job_region") or "").strip().lower() == "ma"
+                and ((j.get("experience_level") or "").lower() in allowed or j.get("experience_level") is None)
+            ]
+        elif expected_region == "global":
+            # Feed for "global" only shows jobs user can apply for: globally_accessible + open_to_intl
+            returned = [
+                j for j in jobs
+                if j.get("globally_accessible") is True
+                and j.get("open_to_intl") is True
+                and ((j.get("experience_level") or "").lower() in allowed or j.get("experience_level") is None)
+            ]
+        else:
+            returned = [
+                j for j in jobs
+                if ((j.get("job_region") or "").strip().lower() == "ma"
+                    or (j.get("globally_accessible") is True and j.get("open_to_intl") is True))
+                and ((j.get("experience_level") or "").lower() in allowed or j.get("experience_level") is None)
+            ]
+        bad_level = [j for j in returned if (j.get("experience_level") or "").lower() not in allowed and j.get("experience_level") is not None]
+        # For global we don't filter by job_region (we filter by globally_accessible + open_to_intl), so don't require region
+        bad_region = [] if expected_region == "global" else [j for j in returned if expected_region and (j.get("job_region") or "").strip().lower() != expected_region]
+        if expected_region == "global":
+            bad_global = [j for j in returned if not j.get("globally_accessible") or not j.get("open_to_intl")]
+            if bad_global:
+                print(f"  FAIL geography={geo!r}: {len(bad_global)} jobs missing globally_accessible/open_to_intl (would show ineligible jobs)")
+                all_ok = False
         if bad_level or bad_region:
             print(f"  FAIL geography={geo!r} user_seniority={seniority!r}: bad_level={len(bad_level)} bad_region={len(bad_region)}")
             all_ok = False
         else:
-            print(f"  OK geography={geo!r} user_seniority={seniority!r}: {len(returned)} jobs in allowed levels {allowed_list}")
+            print(f"  OK geography={geo!r} user_seniority={seniority!r}: {len(returned)} jobs in allowed levels {allowed_levels}")
     if all_ok:
         print("  All spot-checks passed.")
     return all_ok

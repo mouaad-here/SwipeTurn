@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
     },
     text: {
         color: '#FFFFFF',
-        fontFamily: 'Syne_800ExtraBold',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 20,
     }
 });

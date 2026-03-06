@@ -16,6 +16,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '@/constants/colors';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -26,7 +27,7 @@ export default function LoginScreen() {
 
     useEffect(() => {
         if (isLoaded && isSignedIn) {
-            router.replace('/(onboarding)/preferences');
+            router.replace('/(onboarding)/geography');
         }
     }, [isLoaded, isSignedIn]);
 
@@ -100,7 +101,7 @@ export default function LoginScreen() {
                     <StatusBar style="dark" />
 
                     <Pressable onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                        <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
                     </Pressable>
 
                     <Text style={styles.heading}>Welcome back</Text>
@@ -111,7 +112,7 @@ export default function LoginScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter your email"
-                                placeholderTextColor="#9CA3AF"
+                                placeholderTextColor="COLORS.textMeta"
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
@@ -125,7 +126,7 @@ export default function LoginScreen() {
                             <TextInput
                                 style={[styles.input, { flex: 1 }]}
                                 placeholder="Enter your password"
-                                placeholderTextColor="#9CA3AF"
+                                placeholderTextColor="COLORS.textMeta"
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPass}
@@ -138,7 +139,7 @@ export default function LoginScreen() {
                                 <Ionicons
                                     name={showPass ? "eye-off-outline" : "eye-outline"}
                                     size={20}
-                                    color="#9CA3AF"
+                                    color={COLORS.textMeta}
                                 />
                             </Pressable>
                         </View>
@@ -164,7 +165,7 @@ export default function LoginScreen() {
                         </View>
 
                         <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
-                            <Ionicons name="logo-google" size={18} color="#111827" style={styles.googleIcon} />
+                            <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
                             <Text style={styles.googleButtonText}>Continue with Google</Text>
                         </Pressable>
                     </View>
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: COLORS.surface,
         paddingTop: 60,
         paddingHorizontal: 24,
     },
@@ -198,9 +199,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     heading: {
-        fontFamily: 'Syne_800ExtraBold',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 30,
-        color: '#111827',
+        color: 'COLORS.textPrimary',
         marginTop: 28,
         marginBottom: 36,
     },
@@ -209,15 +210,15 @@ const styles = StyleSheet.create({
         gap: 0,
     },
     label: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
-        color: '#6B7280',
+        color: 'COLORS.textMuted',
         marginBottom: 8,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F3F4F6',
+        backgroundColor: 'COLORS.surface2',
         borderRadius: 16,
         borderWidth: 1,
         borderColor: 'transparent',
@@ -225,9 +226,9 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         padding: 18,
-        color: '#111827',
+        color: 'COLORS.textPrimary',
         fontSize: 15,
-        fontFamily: 'DMSans_400Regular',
+        fontFamily: 'Satoshi-Regular',
     },
     eyeIcon: {
         minWidth: 48,
@@ -237,13 +238,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     errorText: {
-        fontFamily: 'DMSans_400Regular',
-        color: '#FF4422',
+        fontFamily: 'Satoshi-Regular',
+        color: 'COLORS.accent',
         fontSize: 13,
         marginTop: 8,
     },
     continueButton: {
-        backgroundColor: '#FF4422',
+        backgroundColor: 'COLORS.accent',
         borderRadius: 50,
         paddingVertical: 18,
         minHeight: 48,
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 17,
         color: 'white',
     },
@@ -267,12 +268,12 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: 'COLORS.border',
     },
     dividerText: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
-        color: '#9CA3AF',
+        color: 'COLORS.textMeta',
         marginHorizontal: 16,
     },
     googleButton: {
@@ -281,7 +282,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: 'white',
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: 'COLORS.border',
         borderRadius: 50,
         paddingVertical: 16,
         minHeight: 48,
@@ -290,9 +291,9 @@ const styles = StyleSheet.create({
         marginRight: 10,
     },
     googleButtonText: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 15,
-        color: '#111827',
+        color: 'COLORS.textPrimary',
     },
     signupRow: {
         flexDirection: 'row',
@@ -302,14 +303,14 @@ const styles = StyleSheet.create({
         paddingBottom: 64,
     },
     signupPrefix: {
-        fontFamily: 'DMSans_400Regular',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 14,
-        color: '#6B7280',
+        color: 'COLORS.textMuted',
     },
     signupLink: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
-        color: '#111827',
+        color: 'COLORS.textPrimary',
         textDecorationLine: 'underline',
     },
 });

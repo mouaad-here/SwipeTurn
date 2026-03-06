@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -15,12 +16,21 @@ class PreferencesUpdate(BaseModel):
     target_locations: Optional[List[str]] = None
     experience_level: Optional[str] = None
     fields: Optional[List[str]] = None
-    languages: Optional[List[str]] = None
-    work_authorization: Optional[str] = None
-    desired_salary_min: Optional[int] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     name: Optional[str] = None
+
+
+class OnboardingComplete(BaseModel):
+    geography: str
+    relocation_preference: Optional[str] = None
+    seniority: str
+    job_type: List[str]
+    domains: List[str] = []
+    subcategories: List[str] = []
+    keywords: List[str] = []
+    name: Optional[str] = None
+    device_id: Optional[str] = None
 
 @router.get("/me")
 async def get_me(user: dict = Depends(get_current_user)):
@@ -65,11 +75,10 @@ async def get_me(user: dict = Depends(get_current_user)):
 async def update_preferences(prefs: PreferencesUpdate, user: dict = Depends(get_current_user)):
     """Updates user profile and dynamic preference objects."""
     update_data = {k: v for k, v in prefs.model_dump().items() if v is not None}
-    
+
     if not update_data:
         return {"success": True, "message": "No fields to update"}
-    
-    # Map to users table columns. Omit "fields" if not in schema - domains are in preferences anyway.
+
     update_payload = {}
     if "target_locations" in update_data:
         update_payload["target_locations"] = update_data["target_locations"]
@@ -77,16 +86,40 @@ async def update_preferences(prefs: PreferencesUpdate, user: dict = Depends(get_
         update_payload["experience_level"] = update_data["experience_level"]
     if "preferences" in update_data:
         update_payload["preferences"] = update_data["preferences"]
-    for k in ("languages", "work_authorization", "desired_salary_min", "linkedin_url", "portfolio_url", "name"):
+    for k in ("linkedin_url", "portfolio_url", "name"):
         if k in update_data:
             update_payload[k] = update_data[k]
 
     if not update_payload:
         return {"success": True, "message": "No fields to update"}
-        
+
     try:
         response = get_supabase().table("users").update(update_payload).eq("id", user["id"]).execute()
         return {"success": True, "data": response.data[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/onboarding/complete")
+async def complete_onboarding(data: OnboardingComplete, user: dict = Depends(get_current_user)):
+    """Single-commit onboarding. All steps saved at once -- no partial DB states."""
+    update_payload = {
+        "preferences": data.model_dump(),
+        "experience_level": data.seniority,
+        "target_locations": [data.geography],
+        "fields": data.domains + data.subcategories,
+        "desired_job_type": data.job_type,
+        "relocation_preference": data.relocation_preference,
+        "onboarding_completed_at": datetime.utcnow().isoformat(),
+    }
+    if data.name:
+        update_payload["name"] = data.name
+    if data.device_id:
+        update_payload["device_id"] = data.device_id
+
+    try:
+        get_supabase().table("users").update(update_payload).eq("id", user["id"]).execute()
+        return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

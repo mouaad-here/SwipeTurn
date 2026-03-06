@@ -54,18 +54,19 @@ def normalize_location(raw: Optional[str]) -> str:
 
 def job_region_from_location_and_source(normalized_location: str, source: Optional[str]) -> str:
     """
-    Return 'morocco' or 'global' for DB column job_region.
-    Enables fast feed filter: .eq('job_region', user_geography).
+    Return ISO-style region code for DB column job_region.
+    'MA' for Morocco sources/locations, 'GLOBAL' for everything else.
+    Feed filter uses: .eq('job_region', 'MA') for Morocco users.
     """
     if not normalized_location:
-        return "global"
+        return "GLOBAL"
     lower = normalized_location.lower()
     if "morocco" in lower or "maroc" in lower:
-        return "morocco"
+        return "MA"
     src = (source or "").lower()
     if src in ("rekrute", "stagiaires"):
-        return "morocco"
-    return "global"
+        return "MA"
+    return "GLOBAL"
 
 
 def extract_city_country(normalized_location: str, source: Optional[str]) -> tuple[Optional[str], Optional[str]]:
@@ -219,12 +220,16 @@ def normalize_expires_at(raw: Any, posted_at_iso: str) -> Optional[str]:
 SENIORITY_RULES = {
     "student": [
         "intern", "internship", "stage", "stagiaire", "apprenti", "apprentice",
+        "stage pfe", "alternance", "alternant",
         "graduate", "new grad", "new graduate", "entry level", "entry-level",
         "fresh graduate", "trainee", "co-op", "coop",
     ],
     "junior": [
         "junior", " jr ", "jr.", "(jr)", "associate engineer", "associate developer",
-        "associate software", "1-2 years", "1-3 years", "0-2 years", "debutant", "debutante", "debut",
+        "associate software",
+        "débutant", "debutant", "debutante", "debut",
+        "1-2 years", "1-3 years", "0-2 years",
+        "1 year of experience", "1 years of experience",
     ],
     "mid": [
         "mid-level", "mid level", "midlevel",
@@ -232,6 +237,7 @@ SENIORITY_RULES = {
         "software engineer ii", "software engineer 2",
         "level ii", "level 2", "intermediate", "confirmed", "confirme",
         "2-4 years", "3-5 years",
+        "2 years of experience", "3 years of experience",
     ],
     "senior": [
         "senior", " sr.", "sr ", "(sr)", "/ sr",
@@ -244,6 +250,45 @@ SENIORITY_RULES = {
         "7+ years", "8+ years", "10+ years",
     ],
 }
+
+
+def _extract_years_of_experience(text: str) -> int | None:
+    """
+    Try to extract an explicit 'X years of experience' style signal (English/French).
+    Keeps logic simple and conservative; only used when keywords fail.
+    """
+    if not text:
+        return None
+    lower = text.lower()
+    # English: "3+ years of experience", "2 years experience"
+    m = re.search(r"(\\d+)\\+?\\s*(?:years?|yrs?)\\s*(?:of\\s+)?experience", lower)
+    if not m:
+        # French: "3 ans d'expérience", "2 ans d exp"
+        m = re.search(r"(\\d+)\\+?\\s*(?:ans?)\\s+d['e]\\s*exp", lower)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except Exception:
+        return None
+
+
+def _map_years_to_level(years: int) -> str | None:
+    """
+    Map a number of years to one of: student | junior | mid | senior.
+    Conservative thresholds to avoid over-classifying.
+    """
+    if years <= 0:
+        return "student"
+    if years <= 1:
+        return "student"
+    if years <= 2:
+        return "junior"
+    if years <= 4:
+        return "mid"
+    if years >= 5:
+        return "senior"
+    return None
 
 
 def categorize_experience_strict(title: str, description: str) -> str | None:
@@ -260,6 +305,13 @@ def categorize_experience_strict(title: str, description: str) -> str | None:
     desc_lower = " " + (description or "").lower()[:1500] + " "
     for level in ["student", "junior", "mid", "senior"]:
         if any(kw in desc_lower for kw in SENIORITY_RULES[level]):
+            return level
+
+    # Fallback: explicit years-of-experience signal
+    years = _extract_years_of_experience(title or "") or _extract_years_of_experience(description or "")
+    if years is not None:
+        level = _map_years_to_level(years)
+        if level:
             return level
 
     return None

@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,18 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearGuestId } from '@/utils/guestId';
 import { mockOnboardingState } from '@/app/(onboarding)/store';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
-
-const COLORS = {
-    background: '#F8F9FA',
-    accentRed: '#FF4422',
-    accentGreen: '#10B981',
-    textPrimary: '#111827',
-    textMuted: '#6B7280',
-    border: '#E5E7EB',
-    surface: '#FFFFFF',
-    surface2: '#F3F4F6',
-    metaText: '#9CA3AF'
-};
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 
 function getInitials(name: string | undefined): string {
     if (!name || !name.trim()) return '?';
@@ -30,39 +19,74 @@ function getInitials(name: string | undefined): string {
     return (name[0] || '?').toUpperCase();
 }
 
+const FETCH_TIMEOUT_MS = 15000;
+
 export default function ProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { signOut, isSignedIn } = useAuth();
+    const { signOut, isSignedIn, isLoaded } = useAuth();
     const { getAuthHeaders } = useAuthHeaders();
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const fetchingRef = useRef(false);
+    // Keep a stable ref to the latest fetchProfile so useFocusEffect doesn't
+    // re-run on every internal Clerk tick (isSignedIn/getToken reference changes).
+    const fetchProfileRef = useRef<() => Promise<void>>(async () => {});
+
+    const fetchProfile = useCallback(async () => {
+        if (fetchingRef.current) return;
+        fetchingRef.current = true;
+        setLoading(true);
+        setError(null);
+        try {
+            const headers = await getAuthHeaders();
+            const { API_URL } = await import('@/constants/api');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            const res = await fetch(`${API_URL}/users/me`, {
+                headers,
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                setError(res.status === 401 ? 'Please sign in again.' : "Couldn't load profile.");
+                setUser(null);
+                setLoading(false);
+                fetchingRef.current = false;
+                return;
+            }
+            const data = await res.json();
+            setUser(data);
+        } catch (err: any) {
+            if (err?.name === 'AbortError') {
+                setError('Request timed out. Check your connection.');
+            } else {
+                setError('Network error. Tap Retry to try again.');
+            }
+            setUser(null);
+        } finally {
+            setLoading(false);
+            fetchingRef.current = false;
+        }
+    }, [getAuthHeaders]);
+
+    // Keep ref in sync with latest version of fetchProfile
+    useEffect(() => {
+        fetchProfileRef.current = fetchProfile;
+    }, [fetchProfile]);
 
     useFocusEffect(
         useCallback(() => {
-            let cancelled = false;
-            (async () => {
-                if (fetchingRef.current) return;
-                fetchingRef.current = true;
+            if (!isLoaded) {
                 setLoading(true);
-                try {
-                    const headers = await getAuthHeaders();
-                    const { API_URL } = await import('@/constants/api');
-                    const res = await fetch(`${API_URL}/users/me`, { headers });
-                    if (cancelled) return;
-                    if (res.ok) {
-                        const data = await res.json();
-                        setUser(data);
-                    }
-                } catch (_) {}
-                finally {
-                    setLoading(false);
-                    fetchingRef.current = false;
-                }
-            })();
-            return () => { cancelled = true; };
-        }, [getAuthHeaders])
+                setError(null);
+                return;
+            }
+            // Reset guard so every focus event (or auth-state change) fetches fresh
+            fetchingRef.current = false;
+            fetchProfileRef.current();
+        }, [isLoaded, isSignedIn]) // intentionally excludes fetchProfile to prevent Clerk-internal re-runs
     );
 
     const handleLogout = async () => {
@@ -141,10 +165,22 @@ export default function ProfileScreen() {
         return 'Everywhere';
     })();
 
-    if (loading) {
+    if (loading && !error) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={COLORS.accentRed} />
+                <ActivityIndicator size="large" color={COLORS.accent} />
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
+                <StatusBar style="dark" />
+                <Text style={styles.errorMessage}>{error}</Text>
+                <Pressable style={styles.retryButton} onPress={() => fetchProfile()}>
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
             </View>
         );
     }
@@ -182,7 +218,7 @@ export default function ProfileScreen() {
                         <Text style={styles.resumeFilename} numberOfLines={1}>{cvFilename || 'No CV uploaded'}</Text>
                         <Text style={styles.resumeUpdated}>{cvFilename ? 'Update below' : 'Add your CV for better matches'}</Text>
                     </View>
-                    <Pressable style={styles.updateCvBtn} onPress={() => router.push('/(onboarding)/cv-upload')}>
+                    <Pressable style={styles.updateCvBtn} onPress={() => router.push('/(onboarding)/preview')}>
                         <Text style={styles.updateCvText}>{cvFilename ? 'Update CV' : 'Add CV'}</Text>
                     </Pressable>
                 </View>
@@ -195,7 +231,7 @@ export default function ProfileScreen() {
                     <View style={styles.geographyRow}>
                         <Text style={styles.geographyLabel}>Showing jobs:</Text>
                         <Text style={styles.geographyValue}>{geographyLabel}</Text>
-                        <Pressable onPress={() => router.push('/(onboarding)/preferences')} style={styles.changePrefBtn}>
+                        <Pressable onPress={() => router.push('/(onboarding)/geography')} style={styles.changePrefBtn}>
                             <Text style={styles.changePrefText}>Change</Text>
                         </Pressable>
                     </View>
@@ -222,7 +258,7 @@ export default function ProfileScreen() {
                         </View>
                         <Text style={styles.settingLabel}>Notifications</Text>
                         <Text style={styles.settingValue}>Push</Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.metaText} />
+                        <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
                     <Pressable style={styles.settingRow}>
@@ -231,7 +267,7 @@ export default function ProfileScreen() {
                         </View>
                         <Text style={styles.settingLabel}>Privacy & Security</Text>
                         <Text style={styles.settingValue}></Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.metaText} />
+                        <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
                     <Pressable style={styles.settingRow}>
@@ -240,15 +276,15 @@ export default function ProfileScreen() {
                         </View>
                         <Text style={styles.settingLabel}>Help & Support</Text>
                         <Text style={styles.settingValue}></Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.metaText} />
+                        <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
                     {/* Log out / Start over */}
                     <Pressable style={[styles.settingRow, { borderBottomWidth: 0 }]} onPress={handleLogout}>
                         <View style={styles.settingIconCenter}>
-                            <Ionicons name="log-out-outline" size={22} color={COLORS.accentRed} />
+                            <Ionicons name="log-out-outline" size={22} color={COLORS.accent} />
                         </View>
-                        <Text style={[styles.settingLabel, { color: COLORS.accentRed }]}>
+                        <Text style={[styles.settingLabel, { color: COLORS.accent }]}>
                             {isSignedIn ? 'Log out' : 'Start over'}
                         </Text>
                     </Pressable>
@@ -265,39 +301,39 @@ const styles = StyleSheet.create({
     scrollContent: { paddingBottom: 120 },
     avatarSection: { paddingTop: 64, alignItems: 'center', paddingBottom: 24 },
     avatarCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accentRed, justifyContent: 'center', alignItems: 'center' },
-    avatarInitials: { fontFamily: 'Syne_800ExtraBold', fontSize: 32, color: 'white' },
-    nameText: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary, marginTop: 14 },
-    universityText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.metaText, letterSpacing: 1.2, marginTop: 4 },
+    avatarInitials: { fontFamily: 'ClashDisplay-Bold', fontSize: 32, color: 'white' },
+    nameText: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary, marginTop: 14 },
+    universityText: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMeta, letterSpacing: 1.2, marginTop: 4 },
 
     profileCompletionContainer: { marginTop: 16, width: 200 },
-    completionLabel: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: COLORS.textMuted, marginBottom: 6, textAlign: 'center' },
+    completionLabel: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.textMuted, marginBottom: 6, textAlign: 'center' },
     track: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden' },
     fill: { width: '72%', height: '100%', backgroundColor: COLORS.accentRed, borderRadius: 3 },
 
     sectionHeader: { paddingHorizontal: 24, marginBottom: 10, marginTop: 12 },
-    sectionLabel: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: COLORS.metaText, letterSpacing: 1.4 },
+    sectionLabel: { fontFamily: 'Satoshi-Regular', fontSize: 11, color: COLORS.textMeta, letterSpacing: 1.4 },
 
     card: {
         marginHorizontal: 24, marginBottom: 24, backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12,
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2
     },
 
-    resumeIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,68,34,0.10)', justifyContent: 'center', alignItems: 'center' },
+    resumeIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: COLORS_ALPHA.accentLight, justifyContent: 'center', alignItems: 'center' },
     resumeInfo: { flex: 1, gap: 2 },
-    resumeFilename: { fontFamily: 'DMSans_500Medium', fontSize: 14, color: COLORS.textPrimary },
-    resumeUpdated: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: COLORS.metaText },
+    resumeFilename: { fontFamily: 'Satoshi-Medium', fontSize: 14, color: COLORS.textPrimary },
+    resumeUpdated: { fontFamily: 'Satoshi-Regular', fontSize: 11, color: COLORS.textMeta },
     updateCvBtn: { backgroundColor: COLORS.accentRed, paddingHorizontal: 14, paddingVertical: 12, minHeight: 48, borderRadius: 50, justifyContent: 'center' },
-    updateCvText: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: 'white' },
+    updateCvText: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: 'white' },
 
     chipsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 50, paddingHorizontal: 14, paddingVertical: 8 },
-    chipText: { fontFamily: 'DMSans_500Medium', fontSize: 13, color: COLORS.textPrimary },
-    emptyPrefs: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: COLORS.textMuted },
+    chipText: { fontFamily: 'Satoshi-Medium', fontSize: 13, color: COLORS.textPrimary },
+    emptyPrefs: { fontFamily: 'Satoshi-Regular', fontSize: 13, color: COLORS.textMuted },
     geographyRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-    geographyLabel: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: COLORS.textMuted },
-    geographyValue: { fontFamily: 'DMSans_500Medium', fontSize: 13, color: COLORS.textPrimary },
+    geographyLabel: { fontFamily: 'Satoshi-Regular', fontSize: 13, color: COLORS.textMuted },
+    geographyValue: { fontFamily: 'Satoshi-Medium', fontSize: 13, color: COLORS.textPrimary },
     changePrefBtn: { marginLeft: 'auto' },
-    changePrefText: { fontFamily: 'DMSans_500Medium', fontSize: 13, color: COLORS.accentRed },
+    changePrefText: { fontFamily: 'Satoshi-Medium', fontSize: 13, color: COLORS.accent },
     addChipBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.accentRed, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
 
     settingsCard: {
@@ -306,6 +342,9 @@ const styles = StyleSheet.create({
     },
     settingRow: { paddingVertical: 16, minHeight: 48, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', alignItems: 'center', gap: 14 },
     settingIconCenter: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-    settingLabel: { flex: 1, fontFamily: 'DMSans_500Medium', fontSize: 15, color: COLORS.textPrimary },
-    settingValue: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.metaText, marginRight: 4 }
+    settingLabel: { flex: 1, fontFamily: 'Satoshi-Medium', fontSize: 15, color: COLORS.textPrimary },
+    settingValue: { fontFamily: 'Satoshi-Regular', fontSize: 14, color: COLORS.textMeta, marginRight: 4 },
+    errorMessage: { fontFamily: 'Satoshi-Medium', fontSize: 15, color: COLORS.textPrimary, textAlign: 'center', marginBottom: 16 },
+    retryButton: { backgroundColor: COLORS.accentRed, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 50, minHeight: 48, justifyContent: 'center' },
+    retryButtonText: { fontFamily: 'Satoshi-Medium', fontSize: 15, color: 'white' },
 });

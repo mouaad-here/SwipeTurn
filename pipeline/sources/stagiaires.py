@@ -1,9 +1,35 @@
 import uuid
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 import random
 import re
+
+# Only keep jobs posted within this many days (feed freshness).
+MAX_AGE_DAYS = 14
+# Safety cap when using dynamic pagination.
+MAX_JOBS_CAP = 5000
+
+
+def _parse_relative_date_fr(text: str) -> str | None:
+    """Parse French relative date strings like 'Il y a 4 heures', 'Il y a 2 jours', 'Il y a 1 mois'."""
+    if not text or not isinstance(text, str):
+        return None
+    txt = text.strip().lower()
+    now = datetime.now(timezone.utc)
+    # Il y a X heure(s)
+    m = re.search(r"il y a\s+(\d+)\s*heures?", txt)
+    if m:
+        return (now - timedelta(hours=int(m.group(1)))).isoformat()
+    # Il y a X jour(s)
+    m = re.search(r"il y a\s+(\d+)\s*jours?", txt)
+    if m:
+        return (now - timedelta(days=int(m.group(1)))).isoformat()
+    # Il y a X mois
+    m = re.search(r"il y a\s+(\d+)\s*mois", txt)
+    if m:
+        return (now - timedelta(days=int(m.group(1)) * 30)).isoformat()
+    return None
 
 
 def _parse_candidate_date(value) -> str | None:
@@ -46,9 +72,20 @@ def _extract_posted_at_from_item(item: dict) -> str | None:
     ]
     for key in candidate_fields:
         if key in item:
-            parsed = _parse_candidate_date(item.get(key))
+            val = item.get(key)
+            parsed = _parse_candidate_date(val)
             if parsed:
                 return parsed
+            if isinstance(val, str):
+                rel = _parse_relative_date_fr(val)
+                if rel:
+                    return rel
+    # Scan string values in item for "il y a X heures/jours/mois"
+    for key, val in item.items():
+        if isinstance(val, str) and "il y a" in val.lower():
+            rel = _parse_relative_date_fr(val)
+            if rel:
+                return rel
     return None
 
 
@@ -62,51 +99,67 @@ def _extract_experience_hint(item: dict, title: str, description: str) -> str | 
         return "senior"
     return None
 
-MAX_PAGES = 20
-
-
-def fetch_stagiaires(max_pages: int = MAX_PAGES) -> list[dict]:
+def fetch_stagiaires(max_pages: int | None = None) -> list[dict]:
     """
     Fetches job listings from Stagiaires.ma using their internal public JSON API.
-    This entirely bypasses the need for Playwright or HTML parsing, making it significantly faster and perfectly stable.
+    Uses dynamic pagination: fetches until API returns no more data or total is reached (cap at MAX_JOBS_CAP).
+    Jobs older than MAX_AGE_DAYS are excluded.
     """
-    jobs = []
-    print("Initializing API Fetcher for Stagiaires (Native JSON Mode)...")
-    
+    jobs: list[dict] = []
+    print("Initializing API Fetcher for Stagiaires (Native JSON Mode, dynamic pagination)...")
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
         "Accept": "application/json",
         "Referer": "https://www.stagiaires.ma/stage-emploi-maroc"
     }
-    
+
     limit = 20
     pages_scraped = 0
     posted_at_real_count = 0
     posted_at_fallback_count = 0
-    
+    page_num = 1
+    total_from_api: int | None = None
+
     try:
-        for page_num in range(1, max_pages + 1):
+        from bs4 import BeautifulSoup
+
+        while True:
+            if max_pages is not None and page_num > max_pages:
+                break
+            if len(jobs) >= MAX_JOBS_CAP:
+                print(f"Reached cap of {MAX_JOBS_CAP} jobs. Stopping.")
+                break
+
             offset = (page_num - 1) * limit
             url = f"https://api.stagiaires.ma/api/v1/public/annonces?limit={limit}&offset={offset}&statut=Valid%C3%A9e"
-            
+
             print(f"Fetching Stagiaires API Page {page_num}...")
-            
+
             response = requests.get(url, headers=headers, timeout=15)
             if response.status_code != 200:
                 print(f"API Request failed with status {response.status_code}. Stopping pagination.")
                 break
-                
+
             data = response.json()
             items = data.get('data', [])
-            
+
+            if total_from_api is None:
+                total_from_api = data.get('total') or data.get('totalCount')
+                if isinstance(total_from_api, dict):
+                    total_from_api = total_from_api.get('total') or total_from_api.get('totalCount')
+                if total_from_api is not None:
+                    try:
+                        total_from_api = int(total_from_api)
+                    except (TypeError, ValueError):
+                        total_from_api = None
+
             if not items:
                 print("No more job data returned from API.")
                 break
             pages_scraped += 1
-                
+
             print(f"Found {len(items)} job entries natively on API page {page_num}.")
-            
-            from bs4 import BeautifulSoup
 
             for item in items:
                 title = item.get('titre', 'Unknown Internship')
@@ -120,11 +173,18 @@ def fetch_stagiaires(max_pages: int = MAX_PAGES) -> list[dict]:
                 elif "Hybride" in workspace_type:
                     remote_type = "HYBRID"
                 
-                company_obj = item.get('entreprise', {})
-                company = company_obj.get('nom', 'Unknown Company') if company_obj else 'Unknown Company'
-                
-                ville_obj = item.get('ville', {})
-                location = ville_obj.get('nom', 'Morocco') if ville_obj else 'Morocco'
+                company_obj = item.get('entreprise', {}) or {}
+                company = company_obj.get('nom', 'Unknown Company')
+                logo_url = (
+                    company_obj.get('logo_url') or company_obj.get('logo') or company_obj.get('image')
+                    or (company_obj.get('url_logo') if isinstance(company_obj.get('url_logo'), str) else None)
+                )
+                if logo_url and not str(logo_url).startswith('http'):
+                    logo_url = 'https://www.stagiaires.ma' + str(logo_url).lstrip('/') if logo_url else None
+
+                ville_obj = item.get('ville', {}) or {}
+                location = ville_obj.get('nom', 'Morocco')
+                city = ville_obj.get('nom') if ville_obj else None
                 
                 # Extract and clean HTML Description
                 raw_html_desc = item.get('description', '')
@@ -167,26 +227,59 @@ def fetch_stagiaires(max_pages: int = MAX_PAGES) -> list[dict]:
                     "description": clean_desc,
                     "apply_url": apply_url,
                     "source": "stagiaires",
-                    "source_id": f"sta_{str(item.get('id', uuid.uuid4()))}",  # Stable API ID!
-                    "posted_at": posted_at
+                    "source_id": f"sta_{str(item.get('id', uuid.uuid4()))}",
+                    "posted_at": posted_at,
+                    "job_region": "MA",
+                    "country_code": "MA",
                 }
+                if logo_url:
+                    job_entry["company_logo_url"] = logo_url
+                if city:
+                    job_entry["city"] = city
                 if remote_type:
                     job_entry["remote_type"] = remote_type
                 if experience_hint:
                     job_entry["experience_level_hint"] = experience_hint
                 jobs.append(job_entry)
-            
-            # Polite rate limiting
+
+            if total_from_api is not None and len(jobs) >= total_from_api:
+                print(f"Fetched all {total_from_api} jobs from API.")
+                break
+
+            page_num += 1
             time.sleep(random.uniform(1, 2))
-            
+
     except Exception as e:
         print(f"fetch_stagiaires crashed during API request: {e}")
+
+    # Max age filter: keep only jobs posted within MAX_AGE_DAYS
+    cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
+    filtered = []
+    for j in jobs:
+        try:
+            pt = j.get("posted_at")
+            if pt:
+                if isinstance(pt, str):
+                    dt = datetime.fromisoformat(pt.replace("Z", "+00:00"))
+                else:
+                    dt = pt
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt >= cutoff:
+                    filtered.append(j)
+            else:
+                filtered.append(j)
+        except Exception:
+            filtered.append(j)
+    dropped = len(jobs) - len(filtered)
+    if dropped:
+        print(f"[stagiaires] Dropped {dropped} jobs older than {MAX_AGE_DAYS} days.")
+
     print(
-        f"[stagiaires] Scraped {pages_scraped} pages, found {len(jobs)} jobs, "
+        f"[stagiaires] Scraped {pages_scraped} pages, found {len(filtered)} jobs (after {MAX_AGE_DAYS}-day filter), "
         f"real_posted_at={posted_at_real_count}, fallback_posted_at={posted_at_fallback_count}"
     )
-        
-    return jobs
+    return filtered
 
 if __name__ == "__main__":
     res = fetch_stagiaires(max_pages=2)

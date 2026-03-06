@@ -14,7 +14,7 @@ const COLORS = {
 };
 
 export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-    const ALLOWED_ROUTES = ['swipe', 'saved', 'profile'];
+    const ALLOWED_ROUTES = ['swipe', 'explore', 'saved', 'profile'];
     const routes = state.routes.filter(
         route => {
             const { options } = descriptors[route.key];
@@ -54,6 +54,8 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
                                 return <Ionicons name={isFocused ? "albums" : "albums-outline"} size={22} color={iconColor} />;
                             case 'saved':
                                 return <Ionicons name={isFocused ? "bookmark" : "bookmark-outline"} size={22} color={iconColor} />;
+                            case 'explore':
+                                return <Ionicons name={isFocused ? "search" : "search-outline"} size={22} color={iconColor} />;
                             case 'profile':
                                 return <Ionicons name={isFocused ? "person" : "person-outline"} size={22} color={iconColor} />;
                             default:
@@ -77,22 +79,14 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
 }
 
 function TabItem({ label, isFocused, onPress, icon }: { label: string, isFocused: boolean, onPress: () => void, icon: React.ReactNode }) {
+    const animatedStyle = useAnimatedStyle(() => ({
+        width: withTiming(isFocused ? 100 : 56, { duration: 220 }),
+        backgroundColor: withTiming(isFocused ? COLORS.activeBg : COLORS.inactiveBg, { duration: 220 }),
+    }));
 
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            width: withSpring(isFocused ? 120 : 56, { damping: 15, stiffness: 150 }),
-            backgroundColor: withTiming(isFocused ? COLORS.activeBg : COLORS.inactiveBg, { duration: 200 }),
-        };
-    });
-
-    const textAnimatedStyle = useAnimatedStyle(() => {
-        return {
-            opacity: withTiming(isFocused ? 1 : 0, { duration: 200 }),
-            transform: [
-                { scale: withTiming(isFocused ? 1 : 0.5, { duration: 200 }) }
-            ]
-        };
-    });
+    const textAnimatedStyle = useAnimatedStyle(() => ({
+        opacity: withTiming(isFocused ? 1 : 0, { duration: 220 }),
+    }));
 
     return (
         <Pressable onPress={onPress}>
@@ -151,7 +145,7 @@ const styles = StyleSheet.create({
     },
     labelText: {
         color: COLORS.textActive,
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
     }
 });

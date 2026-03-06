@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 
 export default function WelcomeScreen() {
     const router = useRouter();
@@ -22,8 +23,8 @@ export default function WelcomeScreen() {
         return (
             <View style={[styles.container, styles.centered]}>
                 <StatusBar style="dark" />
-                <Text style={styles.logoPrefix}>Swip</Text>
-                <Text style={styles.logoSuffix}>turn</Text>
+                <Text style={styles.logoPrefix}>Swipe</Text>
+                <Text style={styles.logoSuffix}>Turn</Text>
             </View>
         );
     }
@@ -39,8 +40,8 @@ export default function WelcomeScreen() {
                 <View style={styles.circleSmall} />
 
                 <View style={styles.logoRow}>
-                    <Text style={styles.logoPrefix}>Swip</Text>
-                    <Text style={styles.logoSuffix}>turn</Text>
+                    <Text style={styles.logoPrefix}>Swipe</Text>
+                    <Text style={styles.logoSuffix}>Turn</Text>
                 </View>
 
                 <Text style={styles.tagline}>Swipe. Turn your career around.</Text>
@@ -57,7 +58,7 @@ export default function WelcomeScreen() {
 
                 <Pressable
                     style={styles.continueWithoutButton}
-                    onPress={() => router.replace('/(onboarding)/preferences')}
+                    onPress={() => router.replace('/(onboarding)/geography')}
                 >
                     <Text style={styles.continueWithoutText}>Continue without account</Text>
                 </Pressable>
@@ -76,7 +77,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: COLORS.background,
     },
     topArea: {
         flex: 1,
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
         width: 260,
         height: 260,
         borderRadius: 130,
-        backgroundColor: 'rgba(255,68,34,0.06)',
+        backgroundColor: COLORS_ALPHA.accentLight,
         top: -40,
         right: -60,
     },
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
         width: 140,
         height: 140,
         borderRadius: 70,
-        backgroundColor: 'rgba(255,68,34,0.04)',
+        backgroundColor: COLORS_ALPHA.accentLight,
         top: 60,
         left: -30,
     },
@@ -107,19 +108,19 @@ const styles = StyleSheet.create({
         alignItems: 'baseline',
     },
     logoPrefix: {
-        fontFamily: 'Syne_800ExtraBold',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 42,
-        color: '#111827',
+        color: COLORS.textPrimary,
     },
     logoSuffix: {
-        fontFamily: 'Syne_800ExtraBold',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 42,
-        color: '#FF4422',
+        color: COLORS.accent,
     },
     tagline: {
-        fontFamily: 'DMSans_400Regular',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 16,
-        color: '#6B7280',
+        color: COLORS.textMuted,
         marginTop: 12,
         textAlign: 'center',
     },
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     getStartedButton: {
-        backgroundColor: '#FF4422',
+        backgroundColor: COLORS.accent,
         borderRadius: 50,
         paddingVertical: 18,
         minHeight: 48,
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     getStartedText: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 17,
         color: 'white',
     },
@@ -149,9 +150,9 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     continueWithoutText: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
-        color: '#6B7280',
+        color: COLORS.textMuted,
     },
     loginRow: {
         flexDirection: 'row',
@@ -159,14 +160,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loginPrefix: {
-        fontFamily: 'DMSans_400Regular',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 14,
-        color: '#6B7280',
+        color: COLORS.textMuted,
     },
     loginLink: {
-        fontFamily: 'DMSans_500Medium',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
-        color: '#FF4422',
+        color: COLORS.accent,
     },
     loginLinkTouch: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
     centered: {

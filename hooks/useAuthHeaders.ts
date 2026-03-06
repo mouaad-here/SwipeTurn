@@ -7,7 +7,12 @@ export function useAuthHeaders() {
 
     const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
         if (isSignedIn) {
-            const token = await getToken();
+            let token = await getToken();
+            if (!token) {
+                // Clerk session may not be hydrated yet on first call — retry once after a short wait
+                await new Promise(r => setTimeout(r, 800));
+                token = await getToken();
+            }
             if (token) {
                 return { Authorization: `Bearer ${token}` };
             }

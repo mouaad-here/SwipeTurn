@@ -5,9 +5,26 @@ from typing import List, Optional
 from dependencies import get_supabase, get_current_user
 from services.matching import calculate_match_score, get_skill_breakdown, cosine_similarity
 from services.embeddings import build_user_profile_text_from_user
-from services.reranker import rerank_pairs
+from constants import (
+    get_seniority_filter,
+    build_eligibility_filter,
+    MIN_FEED_SCORE,
+    DOMAIN_KEYWORDS,
+)
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+
+def _safe_posted_at_ts(job: dict) -> float:
+    raw = job.get("posted_at")
+    if not raw:
+        return 0.0
+    try:
+        s = str(raw).replace("Z", "+00:00")
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        return 0.0
+
 
 @router.get("/feed")
 async def get_job_feed(
@@ -16,38 +33,21 @@ async def get_job_feed(
     user: dict = Depends(get_current_user)
 ):
     """
-    Returns jobs scored and sorted by CV match, excluding jobs already swiped.
-    Uses DB-side filtering (job_region, experience_level) so we only fetch what the user wants.
+    Returns jobs scored and sorted by match, excluding jobs already swiped.
+    Seniority = hard filter. Scoring = skill overlap + domain + job type.
+    Sorted by posted_at DESC after scoring (recency = sort, not score).
     """
     user_id = user["id"]
-    user_skills = user.get("extracted_skills", []) or []
-    prefs = user.get("preferences", {}) or {}
-    RESIDENCY_RESTRICTED_PHRASES = [
-        "must be authorized to work in", "must be eligible to work in",
-        "legally authorized to work in", "right to work in",
-        "work permit required in",
-        "must reside in", "must be located in", "must be based in",
-        "residents of", "only open to residents", "applicants must be in",
-        "us only", "usa only", "uk only", "canada only",
-        "eu only", "australia only",
-        "we can only hire in", "we are only able to hire in",
-        "we currently hire in", "cannot hire outside of",
-    ]
-    MOROCCO_POSITIVE_PHRASES = [
-        "morocco", "maroc", "moroccan",
-        "mena", "maghreb", "north africa", "afrique du nord",
-        "worldwide", "anywhere in the world", "globally",
-        "all countries", "any country", "any location",
-        "no location restrictions",
-    ]
+    prefs = user.get("preferences") or {}
+    user_skills = user.get("extracted_skills") or []
     if not user_skills and prefs:
         user_skills = list(prefs.get("keywords") or []) + list(prefs.get("domains") or [])
 
-    # 1. Swiped job ids (to exclude from feed)
+    # 1. Exclude swiped jobs
     swipes_res = get_supabase().table("swipes").select("job_id").eq("user_id", user_id).execute()
-    swiped_ids = [s["job_id"] for s in swipes_res.data]
+    swiped_ids = set(s["job_id"] for s in swipes_res.data)
 
-    # 2. Build query with filters so DB returns only relevant jobs (better search, less data)
+    # 2. Build query with filters
     query = (
         get_supabase()
         .table("jobs")
@@ -55,252 +55,248 @@ async def get_job_feed(
         .eq("is_active", True)
         .not_.is_("apply_url", "null")
     )
-    # Geography: filter by job_region when user chose Morocco or Global (requires job_region column + migration)
+
+    # Geography + eligibility filter
     user_geography = (prefs.get("geography") or "").lower()
-    if user_geography == "morocco":
-        query = query.eq("job_region", "morocco")
-    elif user_geography == "global":
-        query = query.eq("job_region", "global")
-    # else "both" or empty: no job_region filter
+    eligibility = build_eligibility_filter(user)
 
-    # Experience level: two matrices by geography (see plan: geography-specific_feed_filters_and_audit)
-    user_seniority = (user.get("experience_level") or prefs.get("seniority") or "mid").lower().strip()
-    # Global: stretch-down (junior sees student+junior, mid sees junior+mid)
-    ALLOWED_EXPERIENCE_GLOBAL = {
-        "student": ["student"],
-        "junior": ["student", "junior"],
-        "mid": ["junior", "mid"],
-        "senior": ["mid", "senior", "senior_lead"],
-    }
-    # Morocco: Stage/PFE distinct; junior rare → junior sees student+mid; mid strict
-    ALLOWED_EXPERIENCE_MOROCCO = {
-        "student": ["student"],
-        "junior": ["student", "mid"],
-        "mid": ["mid"],
-        "senior": ["mid", "senior", "senior_lead"],
-    }
-    if user_geography == "morocco":
-        allowed_levels = ALLOWED_EXPERIENCE_MOROCCO.get(user_seniority)
+    if "or" in eligibility:
+        # "both" geography: Morocco OR global accessible
+        query = query.or_(
+            f"job_region.eq.MA,"
+            f"and(globally_accessible.eq.true,open_to_intl.eq.true)"
+        )
+    elif "job_region" in eligibility:
+        query = query.eq("job_region", eligibility["job_region"])
     else:
-        # "global", "both", or empty → use Global matrix
-        allowed_levels = ALLOWED_EXPERIENCE_GLOBAL.get(user_seniority)
-    if allowed_levels:
-        levels_csv = ",".join(allowed_levels)
-        query = query.or_(f"experience_level.in.({levels_csv}),experience_level.is.null")
+        # Global: only show jobs user can apply for (no visa/local-only)
+        if eligibility.get("globally_accessible"):
+            query = query.eq("globally_accessible", True)
+        if eligibility.get("open_to_intl"):
+            query = query.eq("open_to_intl", True)
+        if eligibility.get("remote_type"):
+            query = query.eq("remote_type", eligibility["remote_type"])
 
-    # Cap fetch size so we don't pull entire table; then filter apply_url and swiped in memory
+    # Seniority: strict hard filter
+    user_seniority = (user.get("experience_level") or prefs.get("seniority") or "mid").lower().strip()
+    allowed_levels = get_seniority_filter(user_seniority)
+    levels_csv = ",".join(allowed_levels)
+    query = query.or_(f"experience_level.in.({levels_csv}),experience_level.is.null")
+
+    # Job type filter
+    user_job_types = prefs.get("job_type") or []
+    if user_job_types:
+        types_csv = ",".join(t.lower() for t in user_job_types)
+        query = query.or_(f"job_type.in.({types_csv}),job_type.is.null")
+
     FEED_FETCH_LIMIT = 1000
     query = query.limit(FEED_FETCH_LIMIT).order("posted_at", desc=True)
-    try:
-        jobs_res = query.execute()
-    except Exception as err:
-        # If job_region column missing (migration not run), fetch without it and filter geography in memory
-        if "job_region" in str(err) or "column" in str(err).lower():
-            fallback = get_supabase().table("jobs").select("*").eq("is_active", True).not_.is_("apply_url", "null").limit(FEED_FETCH_LIMIT).order("posted_at", desc=True)
-            if allowed_levels:
-                levels_csv = ",".join(allowed_levels)
-                fallback = fallback.or_(f"experience_level.in.({levels_csv}),experience_level.is.null")
-            jobs_res = fallback.execute()
-            raw_jobs = jobs_res.data or []
-            def _is_morocco(j):
-                loc, src = (j.get("location") or "").lower(), (j.get("source") or "").lower()
-                return "morocco" in loc or "maroc" in loc or src in ("rekrute", "stagiaires")
-            if user_geography == "morocco":
-                raw_jobs = [j for j in raw_jobs if _is_morocco(j)]
-            elif user_geography == "global":
-                raw_jobs = [j for j in raw_jobs if not _is_morocco(j)]
-            # Apply Morocco-applicable filter for fallback too (USA-only exclusion applied below)
-            def _morocco_applicable_fb(j):
-                if _is_morocco(j):
-                    return True
-                if j.get("visa_sponsorship") or j.get("open_to_intl"):
-                    return True
-                if j.get("is_remote"):
-                    text = " ".join([
-                        (j.get("location") or "").lower(),
-                        (j.get("description_text") or "")[:2000].lower(),
-                    ])
-                    if any(pp in text for pp in MOROCCO_POSITIVE_PHRASES):
-                        return True
-                    if any(rp in text for rp in RESIDENCY_RESTRICTED_PHRASES):
-                        return False
-                    return True
-                return False
-            if user_geography in ("global", "both"):
-                raw_jobs = [j for j in raw_jobs if _morocco_applicable_fb(j)]
-        else:
-            raise
-    else:
-        raw_jobs = jobs_res.data or []
+    jobs_res = query.execute()
+    raw_jobs = jobs_res.data or []
 
-    # 2b. Morocco-applicable filter: for global/both, only include global jobs where Moroccans can apply
-    # (is_remote, visa_sponsorship, or open_to_intl). Morocco jobs always valid.
-    # Exclude residency-restricted remote jobs (US/UK/EU-only, must reside in X, etc.)
-    def _is_residency_restricted(job: dict) -> bool:
-        """True if job explicitly restricts to specific countries (excludes Morocco)."""
-        text = " ".join([
-            (job.get("location") or "").lower(),
-            (job.get("description_text") or "")[:2000].lower(),
-        ])
-        if any(pp in text for pp in MOROCCO_POSITIVE_PHRASES):
-            return False  # Morocco/worldwide mentioned → not restricted for our users
-        return any(rp in text for rp in RESIDENCY_RESTRICTED_PHRASES)
-
-    def _morocco_applicable(j):
-        if (j.get("job_region") or "").lower() == "morocco":
-            return True
-        if j.get("visa_sponsorship") or j.get("open_to_intl"):
-            return True
-        if j.get("is_remote"):
-            if _is_residency_restricted(j):
-                return False  # residency-restricted remote, exclude
-            return True
-        return False
-
-    if user_geography in ("global", "both"):
-        raw_jobs = [j for j in raw_jobs if _morocco_applicable(j)]
-
-    # 3. Exclude swiped and jobs without valid apply_url
-    candidate_jobs = [
-        j for j in raw_jobs
-        if j["id"] not in swiped_ids
-        and (j.get("apply_url") or "").strip().startswith(("http://", "https://"))
-    ]
-
-    # 4. Score, retrieve topK by vector similarity, rerank top50, then final recency-first ordering.
-    scored_jobs = []
-    user_embedding = user.get("cv_embedding")
-    SENIORITY_INCOMPATIBLE = {
-        "student": {"mid", "senior", "senior_lead"},
-        "junior": {"senior", "senior_lead"},
-    }
-    STAGE1_TOP_K = 200
-    STAGE2_TOP_K = 50
-
-    def job_seniority_incompatible(job_exp: str) -> bool:
-        if not user_seniority or user_seniority not in SENIORITY_INCOMPATIBLE:
-            return False
-        j = (job_exp or "mid").lower().strip()
-        return j in SENIORITY_INCOMPATIBLE.get(user_seniority, set())
-
-    INTL_PREF_TYPES = ["Full-time Remote Job", "Remote Internship", "Part-time", "Freelance", "Contract"]
-    user_wants_intl = any(t in INTL_PREF_TYPES for t in prefs.get("types", []))
-
-    def _safe_posted_at_ts(job: dict) -> float:
-        raw = job.get("posted_at")
-        if not raw:
-            return 0.0
-        try:
-            s = str(raw).replace("Z", "+00:00")
-            return datetime.fromisoformat(s).timestamp()
-        except Exception:
-            return 0.0
-
-    def _build_job_profile_text(job: dict) -> str:
-        return (
-            f"Role: {job.get('title') or ''}. "
-            f"Required skills: {', '.join(job.get('required_skills') or [])}. "
-            f"Experience: {job.get('experience_level') or 'unspecified'}. "
-            f"Description: {(job.get('description_text') or '')[:1600]}"
-        ).strip()
-
-    for job in candidate_jobs:
-        job_skills = job.get("required_skills", [])
-        job_seniority = job.get("experience_level", "mid")
-        if job_seniority_incompatible(job_seniority):
+    # 3. Exclude swiped, deduplicate
+    seen_title_company: set = set()
+    candidate_jobs = []
+    for j in raw_jobs:
+        if j["id"] in swiped_ids:
             continue
-        job_embedding = job.get("description_embedding")
-        base_score = calculate_match_score(
-            user_skills,
-            job_skills,
-            user_seniority=user_seniority,
-            job_seniority=job_seniority,
-            user_embedding=user_embedding,
-            job_embedding=job_embedding,
-            user_preferences=prefs,
-            job_location=job.get("location", ""),
-            job_city=job.get("city"),
+        if not (j.get("apply_url") or "").strip().startswith(("http://", "https://")):
+            continue
+        dedup_key = (
+            (j.get("title") or "").strip().lower(),
+            (j.get("company") or "").strip().lower(),
         )
-        breakdown = get_skill_breakdown(user_skills, job_skills)
-        stage1_score = cosine_similarity(user_embedding, job_embedding) * 100 if user_embedding and job_embedding else 0.0
-        job["base_match_score"] = base_score
-        job["stage1_score"] = stage1_score
-        job["match_score"] = base_score
+        if dedup_key in seen_title_company:
+            continue
+        seen_title_company.add(dedup_key)
+        candidate_jobs.append(j)
+
+    # 4. Domain filter when user selects specific domains
+    user_domains = prefs.get("domains") or []
+    if user_domains:
+        domain_kws: set[str] = set()
+        for d in user_domains:
+            for kw in DOMAIN_KEYWORDS.get(d, [d.lower()]):
+                domain_kws.add(kw.lower())
+
+        def _matches_user_domain(job: dict) -> bool:
+            text = " ".join([
+                (job.get("title") or "").lower(),
+                " ".join(job.get("required_skills") or []).lower(),
+                (job.get("category") or "").lower(),
+                (job.get("subcategory") or "").lower(),
+                (job.get("description_text") or "")[:1200].lower(),
+            ])
+            return any(kw in text for kw in domain_kws)
+
+        candidate_jobs = [j for j in candidate_jobs if _matches_user_domain(j)]
+
+    # 5. Score with simplified 3-component formula
+    scored_jobs = []
+    for job in candidate_jobs:
+        match_score = calculate_match_score(job, user)
+        breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
+        job["match_score"] = match_score
         job["matched_skills"] = breakdown["matched"]
         job["missing_skills"] = breakdown["missing"]
-        if user_wants_intl:
-            if job.get("visa_sponsorship"):
-                job["visa_badge"] = "sponsored"
-            elif job.get("open_to_intl"):
-                job["visa_badge"] = "open_to_intl"
-            elif job.get("location") not in ["Remote", "Morocco"] and "morocco" not in (job.get("location") or "").lower():
-                job["visa_badge"] = "visa_required"
-            else:
-                job["visa_badge"] = None
         scored_jobs.append(job)
 
-    # Stage 1 retrieval over DB-scoped candidates.
-    if user_embedding:
-        scored_jobs.sort(key=lambda x: x.get("stage1_score", 0.0), reverse=True)
-    else:
-        scored_jobs.sort(key=lambda x: _safe_posted_at_ts(x), reverse=True)
-    stage1_candidates = scored_jobs[:STAGE1_TOP_K]
-
-    # Stage 2 rerank only top 50 (graceful fallback on timeout/failure).
-    rerank_candidates = stage1_candidates[:STAGE2_TOP_K]
-    if user_embedding:
-        user_profile_text = build_user_profile_text_from_user(user)
-        rerank_pairs_input = [(user_profile_text, _build_job_profile_text(job)) for job in rerank_candidates]
-        rerank_scores = rerank_pairs(rerank_pairs_input, timeout_seconds=1.0)
-        if rerank_scores is not None and len(rerank_scores) == len(rerank_candidates):
-            # Convert typical cross-encoder range to a 0-100-ish scale with clamping.
-            for job, raw_score in zip(rerank_candidates, rerank_scores):
-                normalized = max(0.0, min(100.0, (raw_score + 2.0) * 25.0))
-                job["match_score"] = round(normalized, 1)
-
-    # Final contract: newest first, score as tie-break.
-    scored_jobs = stage1_candidates
-    scored_jobs.sort(
-        key=lambda x: (_safe_posted_at_ts(x), float(x.get("match_score") or 0.0)),
+    # 6. Filter by minimum score, then sort by score + recency
+    strict_jobs = [j for j in scored_jobs if float(j.get("match_score") or 0) >= MIN_FEED_SCORE]
+    strict_jobs.sort(
+        key=lambda x: (float(x.get("match_score") or 0.0), _safe_posted_at_ts(x)),
         reverse=True,
     )
 
     start_idx = (page - 1) * limit
     end_idx = start_idx + limit
-    paginated_jobs = scored_jobs[start_idx:end_idx]
+    paginated_jobs = strict_jobs[start_idx:end_idx]
 
     return {
         "page": page,
         "limit": limit,
-        "total_available": len(scored_jobs),
+        "total_available": len(strict_jobs),
         "total_returned": len(paginated_jobs),
         "geography_mode": user_geography or "both",
+        "min_feed_score": MIN_FEED_SCORE,
         "jobs": paginated_jobs,
     }
+
+
+@router.get("/search")
+async def search_jobs(
+    q: str = Query(..., min_length=1),
+    exact_priority: bool = Query(False),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=50),
+    user: dict = Depends(get_current_user),
+):
+    """Search jobs by free-text query with optional exact-match priority boost."""
+    import re as re_mod
+    query_tokens = [t.lower() for t in re_mod.split(r'\s+', q.strip()) if t]
+
+    user_id = user["id"]
+    user_skills = user.get("extracted_skills") or []
+    prefs = user.get("preferences") or {}
+    if not user_skills and prefs:
+        user_skills = list(prefs.get("keywords") or []) + list(prefs.get("domains") or [])
+
+    swipes_res = get_supabase().table("swipes").select("job_id").eq("user_id", user_id).execute()
+    swiped_ids = {s["job_id"] for s in swipes_res.data}
+
+    SEARCH_FETCH_LIMIT = 500
+    query_db = (
+        get_supabase()
+        .table("jobs")
+        .select("*")
+        .eq("is_active", True)
+        .not_.is_("apply_url", "null")
+        .limit(SEARCH_FETCH_LIMIT)
+        .order("posted_at", desc=True)
+    )
+    try:
+        raw_jobs = query_db.execute().data or []
+    except Exception:
+        raw_jobs = []
+
+    seen: set = set()
+    candidates = []
+    for j in raw_jobs:
+        if j["id"] in swiped_ids:
+            continue
+        if not (j.get("apply_url") or "").strip().startswith(("http://", "https://")):
+            continue
+        key = ((j.get("title") or "").strip().lower(), (j.get("company") or "").strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(j)
+
+    def _is_relevant(job: dict) -> bool:
+        text = " ".join([
+            (job.get("title") or "").lower(),
+            " ".join(job.get("required_skills") or []).lower(),
+            (job.get("description_text") or "")[:2000].lower(),
+        ])
+        return any(t in text for t in query_tokens)
+
+    candidates = [j for j in candidates if _is_relevant(j)]
+
+    EXACT_BONUS = 18.0
+
+    def _exact_bonus(job: dict) -> float:
+        if not exact_priority:
+            return 0.0
+        title = (job.get("title") or "").lower()
+        skills = [s.lower() for s in (job.get("required_skills") or [])]
+        desc = (job.get("description_text") or "")[:1000].lower()
+        bonus = 0.0
+        for token in query_tokens:
+            if token in title or any(token in s for s in skills):
+                bonus += EXACT_BONUS
+            elif token in desc:
+                bonus += EXACT_BONUS * 0.4
+        return min(bonus, EXACT_BONUS * len(query_tokens))
+
+    scored = []
+    for job in candidates:
+        base_score = calculate_match_score(job, user)
+        job["match_score"] = round(min(100.0, base_score + _exact_bonus(job)), 1)
+        breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
+        job["matched_skills"] = breakdown["matched"]
+        job["missing_skills"] = breakdown["missing"]
+        scored.append(job)
+
+    scored.sort(key=lambda x: float(x.get("match_score") or 0), reverse=True)
+    start = (page - 1) * limit
+    paginated = scored[start:start + limit]
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total_available": len(scored),
+        "total_returned": len(paginated),
+        "query": q,
+        "jobs": paginated,
+    }
+
 
 @router.get("/{job_id}")
 async def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
     """Fetches a single job detail view and calculates dynamic match for the current user."""
     res = get_supabase().table("jobs").select("*").eq("id", job_id).execute()
-    
+
     if not res.data:
         raise HTTPException(status_code=404, detail="Job not found")
-        
+
     job = res.data[0]
-    
-    # Dynamically score it 
-    user_skills = user.get("extracted_skills", [])
-    job_skills = job.get("required_skills", [])
-    
-    job["match_score"] = calculate_match_score(
-        user_skills, 
-        job_skills, 
-        user_embedding=user.get("cv_embedding"),
-        job_embedding=job.get("description_embedding")
-    )
-    
-    breakdown = get_skill_breakdown(user_skills, job_skills)
+    user_skills = user.get("extracted_skills") or []
+
+    job["match_score"] = calculate_match_score(job, user)
+    breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
     job["matched_skills"] = breakdown["matched"]
     job["missing_skills"] = breakdown["missing"]
-    
+
     return job
+
+
+@router.post("/{job_id}/apply")
+async def mark_applied(job_id: str, user: dict = Depends(get_current_user)):
+    """Mark job as applied (intent = action) and return apply_url."""
+    user_id = user["id"]
+
+    job_res = get_supabase().table("jobs").select("apply_url").eq("id", job_id).execute()
+    if not job_res.data:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    apply_url = job_res.data[0].get("apply_url")
+
+    get_supabase().table("swipes").upsert({
+        "user_id": user_id,
+        "job_id": job_id,
+        "direction": "right",
+        "status": "applied",
+        "applied_at": datetime.utcnow().isoformat(),
+    }).execute()
+
+    return {"apply_url": apply_url}

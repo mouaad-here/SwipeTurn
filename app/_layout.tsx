@@ -12,23 +12,16 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { tokenCache } from '@/utils/cache';
 
-import {
-  Syne_800ExtraBold,
-} from '@expo-google-fonts/syne';
-
-import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-} from '@expo-google-fonts/dm-sans';
-
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
-    Syne_800ExtraBold,
-    DMSans_400Regular,
-    DMSans_500Medium,
+    'ClashDisplay-Bold': require('../assets/fonts/ClashDisplay-Bold.otf'),
+    'ClashDisplay-Semibold': require('../assets/fonts/ClashDisplay-Semibold.otf'),
+    'Satoshi-Regular': require('../assets/fonts/Satoshi-Regular.otf'),
+    'Satoshi-Medium': require('../assets/fonts/Satoshi-Medium.otf'),
+    'Satoshi-Bold': require('../assets/fonts/Satoshi-Bold.otf'),
   });
 
   useEffect(() => {

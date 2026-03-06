@@ -1,17 +1,19 @@
 import { Stack } from 'expo-router';
+import { COLORS } from '@/constants/colors';
 
 export default function OnboardingLayout() {
     return (
         <Stack screenOptions={{
             headerShown: false,
             animation: 'slide_from_right',
-            contentStyle: { backgroundColor: '#FFFFFF' }
+            contentStyle: { backgroundColor: COLORS.surface }
         }}>
-            <Stack.Screen name="preferences" options={{ title: 'Preferences' }} />
-            <Stack.Screen name="preferences-2" options={{ title: 'Preferences 2' }} />
-            <Stack.Screen name="preferences-3" options={{ title: 'Preferences 3' }} />
-            <Stack.Screen name="preferences-preview" options={{ title: 'Review' }} />
-            <Stack.Screen name="cv-upload" options={{ title: 'CV Upload' }} />
+            <Stack.Screen name="geography" options={{ title: 'Geography' }} />
+            <Stack.Screen name="seniority" options={{ title: 'Seniority' }} />
+            <Stack.Screen name="job-type" options={{ title: 'Job Type' }} />
+            <Stack.Screen name="domains" options={{ title: 'Domains' }} />
+            <Stack.Screen name="skills" options={{ title: 'Skills' }} />
+            <Stack.Screen name="preview" options={{ title: 'Preview' }} />
         </Stack>
     );
 }

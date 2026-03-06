@@ -6,25 +6,30 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { COLORS } from '@/constants/colors';
 
-const COLORS = {
-    background: '#F8F9FA',
-    accentRed: '#FF4422',
-    accentGreen: '#10B981',
-    textPrimary: '#111827',
-    textMuted: '#6B7280',
-    border: '#E5E7EB',
-    surface: '#FFFFFF',
-    surface2: '#F3F4F6',
-    metaText: '#9CA3AF'
-};
+type Tab = 'saved' | 'applied';
+
+interface SavedJob {
+    id: string;
+    title: string;
+    company: string;
+    location: string;
+    timeAgo: string;
+    apply_url: string;
+    apply_email: string;
+    status: string;
+    applied_at?: string;
+    freshness: 'fresh' | 'aging' | 'stale' | 'closed';
+    is_active?: boolean;
+    posted_at?: string;
+}
 
 function formatTimeAgo(savedAt: string | undefined): string {
     if (!savedAt) return 'Saved';
     try {
         const d = new Date(savedAt);
-        const now = new Date();
-        const diffMs = now.getTime() - d.getTime();
+        const diffMs = Date.now() - d.getTime();
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
@@ -45,11 +50,29 @@ function displayCompany(name: string | null | undefined): string {
     return n;
 }
 
+function getFreshness(job: any): 'fresh' | 'aging' | 'stale' | 'closed' {
+    if (job.is_active === false) return 'closed';
+    const posted = job.posted_at ? new Date(job.posted_at) : null;
+    if (!posted) return 'fresh';
+    const days = Math.floor((Date.now() - posted.getTime()) / 86400000);
+    if (days > 30) return 'stale';
+    if (days > 14) return 'aging';
+    return 'fresh';
+}
+
+const FRESHNESS_COLORS = {
+    fresh: COLORS.accentSuccess,
+    aging: '#D97706',
+    stale: '#EF4444',
+    closed: COLORS.textMeta,
+};
+
 export default function SavedScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { getAuthHeaders } = useAuthHeaders();
-    const [savedJobs, setSavedJobs] = useState<any[]>([]);
+    const [tab, setTab] = useState<Tab>('saved');
+    const [allJobs, setAllJobs] = useState<SavedJob[]>([]);
     const [loading, setLoading] = useState(true);
     const loadingRef = useRef(false);
     const lastFetchedAtRef = useRef(0);
@@ -68,25 +91,26 @@ export default function SavedScreen() {
             const headers = await getAuthHeaders();
             const { API_URL } = await import('@/constants/api');
             const res = await fetch(`${API_URL}/swipes/saved`, { headers });
-            if (!res.ok) {
-                setSavedJobs([]);
-                return;
-            }
+            if (!res.ok) { setAllJobs([]); return; }
             const data = await res.json();
             const jobs = (data.data || []).map((j: any) => ({
                 id: j.id,
                 title: j.title || 'Unknown',
                 company: displayCompany(j.company),
-                location: (j.location || 'Unknown').toUpperCase(),
+                location: ([j.city, j.country_code].filter(Boolean).join(', ') || j.location || 'Unknown').toUpperCase(),
                 timeAgo: formatTimeAgo(j.saved_at),
                 apply_url: j.apply_url || '',
                 apply_email: j.apply_email || '',
-                description: j.description || '',
+                status: j.status || 'saved',
+                applied_at: j.applied_at,
+                freshness: getFreshness(j),
+                is_active: j.is_active,
+                posted_at: j.posted_at,
             }));
-            setSavedJobs(jobs);
+            setAllJobs(jobs);
             lastFetchedAtRef.current = Date.now();
         } catch {
-            setSavedJobs([]);
+            setAllJobs([]);
         } finally {
             loadingRef.current = false;
             setLoading(false);
@@ -94,46 +118,72 @@ export default function SavedScreen() {
     }, [getAuthHeaders]);
 
     useFocusEffect(
-        useCallback(() => {
-            loadSaved();
-        }, [loadSaved])
+        useCallback(() => { loadSaved(); }, [loadSaved])
     );
 
-    const handleApply = (item: any) => {
+    const savedJobs = allJobs.filter(j => j.status === 'saved');
+    const appliedJobs = allJobs.filter(j => j.status === 'applied');
+    const displayJobs = tab === 'saved' ? savedJobs : appliedJobs;
+
+    const handleApply = async (item: SavedJob) => {
+        try {
+            const headers = await getAuthHeaders();
+            const { API_URL } = await import('@/constants/api');
+            await fetch(`${API_URL}/jobs/${item.id}/apply`, {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+            });
+        } catch {}
         const url = (item.apply_url || '').trim();
         if (url && url.startsWith('http')) {
             WebBrowser.openBrowserAsync(url);
         } else if (item.apply_email) {
             WebBrowser.openBrowserAsync(`mailto:${item.apply_email}`);
         }
+        loadSaved(true);
     };
 
-    const renderItem = ({ item }: { item: any }) => (
-        <Pressable
-            style={styles.card}
-            onPress={() => router.push({ pathname: '/job-detail', params: { id: item.id } })}
-        >
-            <View style={styles.logoBox}>
-                <Text style={styles.logoInitial}>{(displayCompany(item.company) || 'C').charAt(0).toUpperCase()}</Text>
-            </View>
-            <View style={styles.infoCenter}>
-                <Text style={styles.jobTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(item.company)}</Text>
-                <View style={styles.metaRow}>
-                    <Ionicons name="location-outline" size={12} color={COLORS.metaText} style={{ marginRight: 2 }} />
-                    <Text style={styles.metaText}>{item.location}</Text>
-                    <Text style={styles.metaDot}>•</Text>
-                    <Text style={styles.metaText}>{item.timeAgo}</Text>
-                </View>
-            </View>
+    const renderItem = ({ item }: { item: SavedJob }) => {
+        const freshColor = FRESHNESS_COLORS[item.freshness];
+        const isClosed = item.freshness === 'closed';
+
+        return (
             <Pressable
-                style={styles.applyPill}
-                onPress={(e) => { e.stopPropagation(); handleApply(item); }}
+                style={[styles.card, isClosed && styles.cardClosed]}
+                onPress={() => router.push({ pathname: '/job-detail', params: { id: item.id } })}
             >
-                <Text style={styles.applyPillText}>Apply</Text>
+                <View style={styles.logoBox}>
+                    <Text style={styles.logoInitial}>{(item.company || 'C').charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={styles.infoCenter}>
+                    <Text style={[styles.jobTitle, isClosed && { color: COLORS.textMeta }]} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.companyName} numberOfLines={1}>{item.company}</Text>
+                    <View style={styles.metaRow}>
+                        <Ionicons name="location-outline" size={12} color={COLORS.textMeta} style={{ marginRight: 2 }} />
+                        <Text style={styles.metaText}>{item.location}</Text>
+                        <View style={[styles.freshDot, { backgroundColor: freshColor }]} />
+                        <Text style={[styles.metaText, { color: freshColor }]}>
+                            {item.freshness === 'closed' ? 'Closed' : item.timeAgo}
+                        </Text>
+                    </View>
+                </View>
+                {!isClosed && tab === 'saved' && (
+                    <Pressable
+                        style={styles.applyPill}
+                        onPress={(e) => { e.stopPropagation(); handleApply(item); }}
+                    >
+                        <Text style={styles.applyPillText}>Apply</Text>
+                    </Pressable>
+                )}
+                {tab === 'applied' && (
+                    <View style={styles.appliedBadge}>
+                        <Ionicons name="checkmark-circle" size={16} color={COLORS.accentSuccess} />
+                        <Text style={styles.appliedText}>Applied</Text>
+                    </View>
+                )}
             </Pressable>
-        </Pressable>
-    );
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -141,22 +191,39 @@ export default function SavedScreen() {
                 <Text style={styles.headerTitle}>My List</Text>
             </View>
 
+            <View style={styles.tabBar}>
+                <Pressable style={[styles.tab, tab === 'saved' && styles.tabActive]} onPress={() => setTab('saved')}>
+                    <Text style={[styles.tabText, tab === 'saved' && styles.tabTextActive]}>
+                        Saved {savedJobs.length > 0 ? `(${savedJobs.length})` : ''}
+                    </Text>
+                </Pressable>
+                <Pressable style={[styles.tab, tab === 'applied' && styles.tabActive]} onPress={() => setTab('applied')}>
+                    <Text style={[styles.tabText, tab === 'applied' && styles.tabTextActive]}>
+                        Applied {appliedJobs.length > 0 ? `(${appliedJobs.length})` : ''}
+                    </Text>
+                </Pressable>
+            </View>
+
             {loading ? (
                 <View style={styles.emptyContainer}>
-                    <ActivityIndicator size="large" color={COLORS.accentRed} />
-                    <Text style={[styles.emptyText, { marginTop: 12 }]}>Loading saved jobs...</Text>
+                    <ActivityIndicator size="large" color={COLORS.accent} />
+                    <Text style={[styles.emptyText, { marginTop: 12 }]}>Loading...</Text>
                 </View>
             ) : (
                 <FlatList
-                    data={savedJobs}
+                    data={displayJobs}
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
                     contentContainerStyle={[styles.listContent, { paddingBottom: 120 + insets.bottom }]}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No saved jobs yet.</Text>
-                            <Text style={styles.emptySubtext}>Swipe right on jobs to save them.</Text>
+                            <Text style={styles.emptyText}>
+                                {tab === 'saved' ? 'No saved jobs yet.' : 'No applied jobs yet.'}
+                            </Text>
+                            <Text style={styles.emptySubtext}>
+                                {tab === 'saved' ? 'Swipe right on jobs to save them.' : 'Tap Apply on saved jobs to track them.'}
+                            </Text>
                         </View>
                     }
                 />
@@ -167,49 +234,44 @@ export default function SavedScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
-    header: { paddingTop: 64, paddingHorizontal: 24, marginBottom: 16 },
-    headerTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 32, color: COLORS.textPrimary },
+    header: { paddingTop: 64, paddingHorizontal: 24, marginBottom: 8 },
+    headerTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 32, color: COLORS.textPrimary },
+    tabBar: {
+        flexDirection: 'row', marginHorizontal: 16, marginBottom: 16,
+        backgroundColor: COLORS.surface2, borderRadius: 12, padding: 4,
+    },
+    tab: {
+        flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10,
+    },
+    tabActive: { backgroundColor: COLORS.surface },
+    tabText: { fontFamily: 'Satoshi-Medium', fontSize: 14, color: COLORS.textMuted },
+    tabTextActive: { color: COLORS.textPrimary },
     listContent: { paddingHorizontal: 16, paddingBottom: 120, gap: 12 },
     card: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
+        flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
+        borderRadius: 16, padding: 16,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
     },
+    cardClosed: { opacity: 0.6 },
     logoBox: {
-        width: 56,
-        height: 56,
-        borderRadius: 12,
-        backgroundColor: COLORS.surface2,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
+        width: 56, height: 56, borderRadius: 12, backgroundColor: COLORS.surface2,
+        justifyContent: 'center', alignItems: 'center', marginRight: 12,
     },
-    logoInitial: { fontFamily: 'Syne_800ExtraBold', fontSize: 24, color: COLORS.textPrimary },
+    logoInitial: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary },
     infoCenter: { flex: 1, gap: 3, marginRight: 8 },
-    jobTitle: { fontFamily: 'DMSans_500Medium', fontSize: 15, color: COLORS.textPrimary },
-    companyName: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: COLORS.textMuted },
+    jobTitle: { fontFamily: 'Satoshi-Medium', fontSize: 15, color: COLORS.textPrimary },
+    companyName: { fontFamily: 'Satoshi-Regular', fontSize: 13, color: COLORS.textMuted },
     metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-    metaText: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: COLORS.metaText },
-    metaDot: { color: COLORS.metaText, fontSize: 10, marginHorizontal: 4 },
+    metaText: { fontFamily: 'Satoshi-Regular', fontSize: 11, color: COLORS.textMeta },
+    freshDot: { width: 6, height: 6, borderRadius: 3, marginHorizontal: 6 },
     applyPill: {
-        backgroundColor: COLORS.accentRed,
-        borderRadius: 50,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        minWidth: 48,
-        minHeight: 48,
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: COLORS.accent, borderRadius: 50, paddingVertical: 8, paddingHorizontal: 16,
+        minWidth: 48, minHeight: 48, justifyContent: 'center', alignItems: 'center',
     },
-    applyPillText: { fontFamily: 'DMSans_500Medium', fontSize: 13, color: 'white' },
+    applyPillText: { fontFamily: 'Satoshi-Medium', fontSize: 13, color: 'white' },
+    appliedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    appliedText: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accentSuccess },
     emptyContainer: { padding: 40, alignItems: 'center', justifyContent: 'center' },
-    emptyText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: COLORS.textMuted },
-    emptySubtext: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: COLORS.metaText, marginTop: 8 },
+    emptyText: { fontFamily: 'Satoshi-Regular', fontSize: 14, color: COLORS.textMuted },
+    emptySubtext: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMeta, marginTop: 8 },
 });
