@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+import json
 
-from dependencies import supabase, get_current_user
+from dependencies import supabase, get_supabase, get_current_user
 from services.cv_parser import extract_text_from_pdf, extract_text_from_docx, parse_cv
+from services.embeddings import generate_cv_embedding
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -17,7 +19,7 @@ class PreferencesUpdate(BaseModel):
     portfolio_url: Optional[str] = None
 
 @router.get("/me")
-async def get_me(user: dict = Depends(get_current_user)):
+def get_me(user: dict = Depends(get_current_user)):
     """Fetches the current user profile, computing the completion score and signed CV URL."""
     
     # Generate 1-hour signed URL if user has uploaded a CV
@@ -45,7 +47,7 @@ async def get_me(user: dict = Depends(get_current_user)):
     return user
 
 @router.patch("/preferences")
-async def update_preferences(prefs: PreferencesUpdate, user: dict = Depends(get_current_user)):
+def update_preferences(prefs: PreferencesUpdate, user: dict = Depends(get_current_user)):
     """Updates user profile and dynamic preference objects."""
     update_data = {k: v for k, v in prefs.model_dump().items() if v is not None}
     
@@ -59,7 +61,11 @@ async def update_preferences(prefs: PreferencesUpdate, user: dict = Depends(get_
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cv")
-async def upload_cv(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+async def upload_cv(
+    file: UploadFile = File(...), 
+    preferences: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user)
+):
     """Uploads a PDF/DOCX to Supabase Storage, parses text, extracts skills via LLM, and updates user profile."""
     if not file.filename.endswith(('.pdf', '.docx')):
         raise HTTPException(status_code=400, detail="Only PDF or DOCX files are supported")
@@ -87,84 +93,51 @@ async def upload_cv(file: UploadFile = File(...), user: dict = Depends(get_curre
             file=file_bytes, 
             file_options={"content-type": file.content_type, "upsert": "true"}
         )
-<<<<<<< Updated upstream
-=======
-            
-        # Decode incoming preferences from React Native
-        prefs_dict = {}
-        if preferences:
-            try:
-                prefs_dict = json.loads(preferences)
-            except Exception:
-                pass
-
-        experience_level_chosen = prefs_dict.get("seniority") or parsed_data.get("experience_level", "mid")
-        prefs_dict["education"] = parsed_data.get("education", [])
-        prefs_dict["projects"] = parsed_data.get("projects", [])
-        prefs_dict["languages"] = parsed_data.get("languages", [])
-
-        # Generate semantic embedding for matching (may be slow on first request)
-        cv_vector = None
-        try:
-            cv_vector = generate_cv_embedding(parsed_data, cv_text)
-        except Exception as e:
-            print(f"Failed to generate CV embedding: {e}")
-
-        update_data = {
-            "cv_storage_path": storage_path,
-            "cv_text": cv_text,
-            "extracted_skills": parsed_data.get("skills", []),
-            "cv_embedding": cv_vector,
-            "experience_level": experience_level_chosen,
-            "target_locations": [prefs_dict.get("geography")] if prefs_dict.get("geography") else [],
-            "fields": prefs_dict.get("domains") or parsed_data.get("fields", []),
-            "preferences": prefs_dict,
-            "name": parsed_data.get("full_name") or user.get("name"),
-            "email": parsed_data.get("email") or user.get("email"),
-            "linkedin_url": parsed_data.get("linkedin_url") or user.get("linkedin_url"),
-        }
-        
-        get_supabase().table("users").update(update_data).eq("id", user["id"]).execute()
-        
-        signed_url = None
-        try:
-            signed_url = get_supabase().storage.from_("cvs").create_signed_url(storage_path, 3600).get("signedURL")
-        except Exception:
-            pass
-            
-        return {
-            "success": True, 
-            "data": {
-                "skills": update_data["extracted_skills"],
-                "experience_level": update_data["experience_level"],
-                "cv_url": signed_url,
-                "message": "CV uploaded and parsed successfully."
-            }
-        }
-    except HTTPException:
-        raise
->>>>>>> Stashed changes
     except Exception as e:
         # Log it, but don't fail the request completely if bucket isn't totally ready
         print(f"Failed to upload to storage: {e}")
         
-    # 3. Update database row with extracted JSON and text
+    # Decode incoming preferences from React Native
+    prefs_dict = {}
+    if preferences:
+        try:
+            prefs_dict = json.loads(preferences)
+        except Exception:
+            pass
+
+    experience_level_chosen = prefs_dict.get("seniority") or parsed_data.get("experience_level", "mid")
+    prefs_dict["education"] = parsed_data.get("education", [])
+    prefs_dict["projects"] = parsed_data.get("projects", [])
+    prefs_dict["languages"] = parsed_data.get("languages", [])
+
+    # Generate semantic embedding for matching (may be slow on first request)
+    cv_vector = None
+    try:
+        cv_vector = generate_cv_embedding(parsed_data, cv_text)
+    except Exception as e:
+        print(f"Failed to generate CV embedding: {e}")
+
+    # Update database row with extracted JSON, text, and embeddings
     update_data = {
         "cv_storage_path": storage_path,
         "cv_text": cv_text,
         "extracted_skills": parsed_data.get("skills", []),
-        "experience_level": parsed_data.get("experience_level", "student"),
-        # Fields array holds things like "Software Engineering"
-        "fields": parsed_data.get("fields", []) 
+        "cv_embedding": cv_vector,
+        "experience_level": experience_level_chosen,
+        "target_locations": [prefs_dict.get("geography")] if prefs_dict.get("geography") else [],
+        "fields": prefs_dict.get("domains") or parsed_data.get("fields", []),
+        "preferences": prefs_dict,
+        "name": parsed_data.get("full_name") or user.get("name"),
+        "email": parsed_data.get("email") or user.get("email"),
+        "linkedin_url": parsed_data.get("linkedin_url") or user.get("linkedin_url"),
     }
     
-    supabase.table("users").update(update_data).eq("id", user["id"]).execute()
+    get_supabase().table("users").update(update_data).eq("id", user["id"]).execute()
     
-    # 4. Generate immediate signed URL to return to client
     signed_url = None
     try:
-        signed_url = supabase.storage.from_("cvs").create_signed_url(storage_path, 3600).get("signedURL")
-    except:
+        signed_url = get_supabase().storage.from_("cvs").create_signed_url(storage_path, 3600).get("signedURL")
+    except Exception:
         pass
         
     return {
@@ -172,6 +145,7 @@ async def upload_cv(file: UploadFile = File(...), user: dict = Depends(get_curre
         "data": {
             "skills": update_data["extracted_skills"],
             "experience_level": update_data["experience_level"],
-            "cv_url": signed_url
+            "cv_url": signed_url,
+            "message": "CV uploaded and parsed successfully."
         }
     }

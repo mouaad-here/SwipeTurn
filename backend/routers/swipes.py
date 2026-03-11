@@ -19,7 +19,7 @@ class SwipeStatusUpdate(BaseModel):
 FREE_SWIPE_LIMIT = int(os.environ.get("FREE_SWIPE_LIMIT", "999"))
 
 @router.post("")
-async def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
+def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
     """Registers a left or right swipe, enforcing the daily free swipe limit."""
     user_id = user["id"]
     
@@ -74,7 +74,7 @@ async def register_swipe(action: SwipeAction, user: dict = Depends(get_current_u
         raise HTTPException(status_code=400, detail="Failed to register swipe or already swiped")
 
 @router.get("/saved")
-async def get_saved_jobs(user: dict = Depends(get_current_user)):
+def get_saved_jobs(user: dict = Depends(get_current_user)):
     """Returns all jobs the user swiped right on, including full job objects."""
     user_id = user["id"]
     
@@ -124,7 +124,7 @@ async def get_saved_jobs(user: dict = Depends(get_current_user)):
 
 
 @router.patch("/{job_id}")
-async def update_saved_status(job_id: str, body: SwipeStatusUpdate, user: dict = Depends(get_current_user)):
+def update_saved_status(job_id: str, body: SwipeStatusUpdate, user: dict = Depends(get_current_user)):
     """Update the status of a saved job (e.g. mark as applied / saved)."""
     user_id = user["id"]
     status = body.status.strip().lower()
@@ -155,7 +155,7 @@ async def update_saved_status(job_id: str, body: SwipeStatusUpdate, user: dict =
 
 
 @router.delete("/{job_id}")
-async def remove_saved_job(job_id: str, user: dict = Depends(get_current_user)):
+def remove_saved_job(job_id: str, user: dict = Depends(get_current_user)):
     """Archive a saved job so it no longer appears in the user's list."""
     user_id = user["id"]
     try:

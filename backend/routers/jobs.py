@@ -27,7 +27,7 @@ def _safe_posted_at_ts(job: dict) -> float:
 
 
 @router.get("/feed")
-async def get_job_feed(
+def get_job_feed(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     user: dict = Depends(get_current_user)
@@ -189,7 +189,7 @@ async def get_job_feed(
 
 
 @router.get("/search")
-async def search_jobs(
+def search_jobs(
     q: str = Query(..., min_length=1),
     exact_priority: bool = Query(False),
     page: int = Query(1, ge=1),
@@ -287,7 +287,7 @@ async def search_jobs(
 
 
 @router.get("/{job_id}")
-async def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
+def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
     """Fetches a single job detail view and calculates dynamic match for the current user."""
     res = get_supabase().table("jobs").select("*").eq("id", job_id).execute()
 
@@ -306,7 +306,7 @@ async def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/{job_id}/apply")
-async def mark_applied(job_id: str, user: dict = Depends(get_current_user)):
+def mark_applied(job_id: str, user: dict = Depends(get_current_user)):
     """Mark job as applied (intent = action) and return apply_url."""
     user_id = user["id"]
 
