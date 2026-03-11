@@ -87,6 +87,63 @@ async def upload_cv(file: UploadFile = File(...), user: dict = Depends(get_curre
             file=file_bytes, 
             file_options={"content-type": file.content_type, "upsert": "true"}
         )
+<<<<<<< Updated upstream
+=======
+            
+        # Decode incoming preferences from React Native
+        prefs_dict = {}
+        if preferences:
+            try:
+                prefs_dict = json.loads(preferences)
+            except Exception:
+                pass
+
+        experience_level_chosen = prefs_dict.get("seniority") or parsed_data.get("experience_level", "mid")
+        prefs_dict["education"] = parsed_data.get("education", [])
+        prefs_dict["projects"] = parsed_data.get("projects", [])
+        prefs_dict["languages"] = parsed_data.get("languages", [])
+
+        # Generate semantic embedding for matching (may be slow on first request)
+        cv_vector = None
+        try:
+            cv_vector = generate_cv_embedding(parsed_data, cv_text)
+        except Exception as e:
+            print(f"Failed to generate CV embedding: {e}")
+
+        update_data = {
+            "cv_storage_path": storage_path,
+            "cv_text": cv_text,
+            "extracted_skills": parsed_data.get("skills", []),
+            "cv_embedding": cv_vector,
+            "experience_level": experience_level_chosen,
+            "target_locations": [prefs_dict.get("geography")] if prefs_dict.get("geography") else [],
+            "fields": prefs_dict.get("domains") or parsed_data.get("fields", []),
+            "preferences": prefs_dict,
+            "name": parsed_data.get("full_name") or user.get("name"),
+            "email": parsed_data.get("email") or user.get("email"),
+            "linkedin_url": parsed_data.get("linkedin_url") or user.get("linkedin_url"),
+        }
+        
+        get_supabase().table("users").update(update_data).eq("id", user["id"]).execute()
+        
+        signed_url = None
+        try:
+            signed_url = get_supabase().storage.from_("cvs").create_signed_url(storage_path, 3600).get("signedURL")
+        except Exception:
+            pass
+            
+        return {
+            "success": True, 
+            "data": {
+                "skills": update_data["extracted_skills"],
+                "experience_level": update_data["experience_level"],
+                "cv_url": signed_url,
+                "message": "CV uploaded and parsed successfully."
+            }
+        }
+    except HTTPException:
+        raise
+>>>>>>> Stashed changes
     except Exception as e:
         # Log it, but don't fail the request completely if bucket isn't totally ready
         print(f"Failed to upload to storage: {e}")

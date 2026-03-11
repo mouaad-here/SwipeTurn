@@ -1,0 +1,2179 @@
+{
+  "generated_from": "analyze_jobs_categories.py",
+  "total_jobs_analyzed": 838,
+  "morocco_jobs": 533,
+  "global_jobs": 305,
+  "suggested_subcategories_by_category": {
+    "Customer Support": [
+      "Account Management",
+      "Administrative",
+      "Administrative Support",
+      "Application Support",
+      "Call Center Management",
+      "Customer Service",
+      "Customer Success",
+      "Customer Support",
+      "IT Support",
+      "Retail & Hospitality",
+      "Sales",
+      "Sales Development",
+      "Sales Support",
+      "Service Desk",
+      "Student Services",
+      "Support Technician",
+      "Technical Support"
+    ],
+    "Cybersecurity": [
+      "Application Security",
+      "Cloud Security",
+      "Compliance & Risk Management",
+      "Cybersecurity",
+      "Governance & Risk",
+      "Offensive Security",
+      "Penetration Testing & Security Audit",
+      "SOC Analyst",
+      "Security",
+      "Security Architecture",
+      "Security Audit",
+      "Security Engineering",
+      "Security Management",
+      "Security Operations",
+      "Vulnerability Analysis"
+    ],
+    "Data & AI": [
+      "BI",
+      "Data Analysis",
+      "Data Analyst",
+      "Data Annotation",
+      "Data Engineering",
+      "Data Engineering, ML/AI",
+      "Data Science",
+      "Data Science, Data Engineering, ML/AI, DevOps",
+      "Growth Marketing",
+      "ML/AI",
+      "Performance Marketing"
+    ],
+    "Design & UX": [
+      "3D Design",
+      "Animation",
+      "Architecture",
+      "CAD Design",
+      "Content & Social Media",
+      "Content Creation",
+      "Design",
+      "Frontend",
+      "Graphic Design",
+      "Interior Design",
+      "Mobile UX/UI",
+      "Product Design",
+      "UI/UX Design",
+      "Video Editing",
+      "Video Editing & Graphic Design",
+      "Video Production"
+    ],
+    "DevOps & Cloud": [
+      "Backend",
+      "Cloud Architecture",
+      "Cloud Infrastructure",
+      "Data Engineering",
+      "Database Administration",
+      "DevOps",
+      "IT Operations",
+      "IT Support",
+      "Infrastructure",
+      "Network Administration",
+      "Network Engineering",
+      "Network Infrastructure",
+      "Network Security",
+      "Other",
+      "QA",
+      "QA Automation",
+      "SRE"
+    ],
+    "Engineering": [
+      "Agricultural Engineering",
+      "Automation",
+      "Automation & Electromechanics",
+      "Automotive Testing",
+      "Backend",
+      "Civil Engineering",
+      "Cloud",
+      "Construction",
+      "Data Engineering",
+      "ERP",
+      "Electrical Engineering",
+      "Embedded Systems",
+      "Energy Engineering",
+      "Engineering",
+      "Enterprise Architecture",
+      "Frontend",
+      "Full Stack",
+      "Full Stack, Backend, ML/AI",
+      "Full-Stack",
+      "Full-stack",
+      "Fullstack",
+      "Hardware",
+      "Industrial Engineering",
+      "Infrastructure",
+      "ML/AI",
+      "Maintenance Engineering",
+      "Manufacturing",
+      "Materials Engineering",
+      "Mechanical Engineering",
+      "Mobile",
+      "Network",
+      "Network Engineering",
+      "Operations & Manufacturing",
+      "Optical Engineering",
+      "Other",
+      "Project Management",
+      "QA",
+      "QA & Testing",
+      "Quality Assurance",
+      "RF Engineering",
+      "SRE",
+      "Software Architecture",
+      "Software Engineering",
+      "Structural Engineering",
+      "Systems Architecture",
+      "Systems Engineering",
+      "Telecommunications"
+    ],
+    "Engineering|Data & AI": [
+      "Data Engineering"
+    ],
+    "Finance & Accounting": [
+      "Accounting",
+      "Administration",
+      "Administrative",
+      "Administrative & Financial Support",
+      "Administrative Assistant",
+      "Administrative Finance",
+      "Asset Management",
+      "Audit",
+      "Audit & Compliance",
+      "Business Administration",
+      "Collections",
+      "Compensation & Benefits",
+      "Compliance",
+      "Cost Control",
+      "Credit Analysis",
+      "ERP Implementation",
+      "Finance",
+      "Financial Control",
+      "Fundraising",
+      "HR",
+      "HR & Accounting",
+      "HR & Payroll",
+      "HR Administration",
+      "HR Operations",
+      "Human Resources",
+      "Legal",
+      "Management Accounting",
+      "Market Analysis",
+      "Operations",
+      "Other",
+      "Payroll",
+      "Procurement",
+      "Risk Management",
+      "Sales",
+      "Sales & Advisory",
+      "Tax",
+      "Transaction Services",
+      "Treasury Management"
+    ],
+    "Other": [
+      "Academic/Teaching",
+      "Account Management",
+      "Admin",
+      "Administrative",
+      "Administrative Assistant",
+      "Administrative Support",
+      "Bid Writing",
+      "Business Development",
+      "Communications & Marketing",
+      "Community & Partnerships",
+      "Community Management",
+      "Compliance",
+      "Consulting",
+      "Content Creation",
+      "Copywriting",
+      "Creative",
+      "Culinary",
+      "Data Entry",
+      "Digital Marketing",
+      "E-commerce",
+      "E-commerce Management",
+      "EHS",
+      "ERP",
+      "Education",
+      "Event Management",
+      "Facilities Management",
+      "Field Service",
+      "General Management",
+      "Growth",
+      "Growth & Acquisition",
+      "Growth & Operations",
+      "HR",
+      "HR & Recruitment",
+      "HR Administration",
+      "HR Recruitment",
+      "HR Systems",
+      "HSE",
+      "HVAC",
+      "Healthcare",
+      "Hospitality",
+      "Hospitality Management",
+      "Human Resources",
+      "IT Consulting",
+      "IT Training",
+      "Instructional Design",
+      "Inventory Management",
+      "Legal",
+      "Logistics",
+      "Logistics & Operations",
+      "Logistics & Procurement",
+      "Logistics & Supply Chain",
+      "Logistics Coordination, 3D Design",
+      "Maintenance Technician",
+      "Management Consulting",
+      "Manufacturing",
+      "Marketing",
+      "Marketing & Communications",
+      "Operations",
+      "Operations Management",
+      "Outreach & Community",
+      "Partnership Management",
+      "Procurement",
+      "Procurement & Supply Chain",
+      "Project Management",
+      "Quality Assurance",
+      "Quality Management",
+      "Recruitment",
+      "Recruitment & Administration",
+      "SEO",
+      "Sales",
+      "Sales & Marketing",
+      "Sales Development",
+      "Sales/Marketing",
+      "Security & Safety Management",
+      "Service Delivery",
+      "Social Media",
+      "Supply Chain",
+      "Technical Trades",
+      "Training & Development",
+      "Training & Enablement",
+      "Training & Support",
+      "Video Production",
+      "Workshop Facilitation"
+    ],
+    "Product": [
+      "Account Management",
+      "Business Analysis",
+      "Business Analyst",
+      "Business Development",
+      "Community Management",
+      "Customer Success",
+      "E-commerce Growth",
+      "HR Marketing",
+      "Marketing",
+      "Operations",
+      "PMO",
+      "Product Management",
+      "Product Marketing",
+      "Product Strategy",
+      "Project Management",
+      "Sales",
+      "Solutions Specialist",
+      "Strategy & Corporate Development",
+      "Technical Program Manager"
+    ]
+  },
+  "unique_category_subcategory_pairs_with_counts": [
+    {
+      "category": "Customer Support",
+      "subcategory": "Account Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Administrative",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Administrative Support",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Application Support",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Call Center Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Customer Service",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Customer Success",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Customer Support",
+      "count": 6,
+      "morocco": 5,
+      "global": 1
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "IT Support",
+      "count": 3,
+      "morocco": 1,
+      "global": 2
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Retail & Hospitality",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Sales",
+      "count": 8,
+      "morocco": 7,
+      "global": 1
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Sales Development",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Sales Support",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Service Desk",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Student Services",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Support Technician",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Customer Support",
+      "subcategory": "Technical Support",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "(no subcategory)",
+      "count": 3,
+      "morocco": 0,
+      "global": 3
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Application Security",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Cloud Security",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Compliance & Risk Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Cybersecurity",
+      "count": 3,
+      "morocco": 0,
+      "global": 3
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Governance & Risk",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Offensive Security",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Penetration Testing & Security Audit",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "SOC Analyst",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Security",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Security Architecture",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Security Audit",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Security Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Security Management",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Security Operations",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Cybersecurity",
+      "subcategory": "Vulnerability Analysis",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "BI",
+      "count": 6,
+      "morocco": 2,
+      "global": 4
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Analysis",
+      "count": 5,
+      "morocco": 1,
+      "global": 4
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Analyst",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Annotation",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Engineering",
+      "count": 5,
+      "morocco": 0,
+      "global": 5
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Engineering, ML/AI",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Science",
+      "count": 6,
+      "morocco": 4,
+      "global": 2
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Data Science, Data Engineering, ML/AI, DevOps",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Growth Marketing",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "ML/AI",
+      "count": 7,
+      "morocco": 4,
+      "global": 3
+    },
+    {
+      "category": "Data & AI",
+      "subcategory": "Performance Marketing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "3D Design",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Animation",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Architecture",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "CAD Design",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Content & Social Media",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Content Creation",
+      "count": 9,
+      "morocco": 9,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Design",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Frontend",
+      "count": 5,
+      "morocco": 4,
+      "global": 1
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Graphic Design",
+      "count": 25,
+      "morocco": 25,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Interior Design",
+      "count": 4,
+      "morocco": 4,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Mobile UX/UI",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Product Design",
+      "count": 3,
+      "morocco": 1,
+      "global": 2
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "UI/UX Design",
+      "count": 4,
+      "morocco": 3,
+      "global": 1
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Video Editing",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Video Editing & Graphic Design",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Design & UX",
+      "subcategory": "Video Production",
+      "count": 5,
+      "morocco": 5,
+      "global": 0
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Backend",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Cloud Architecture",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Cloud Infrastructure",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Data Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Database Administration",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "DevOps",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "IT Operations",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "IT Support",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Infrastructure",
+      "count": 5,
+      "morocco": 2,
+      "global": 3
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Network Administration",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Network Engineering",
+      "count": 4,
+      "morocco": 0,
+      "global": 4
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Network Infrastructure",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Network Security",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "Other",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "QA",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "QA Automation",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "DevOps & Cloud",
+      "subcategory": "SRE",
+      "count": 24,
+      "morocco": 10,
+      "global": 14
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Agricultural Engineering",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Automation",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Automation & Electromechanics",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Automotive Testing",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Backend",
+      "count": 65,
+      "morocco": 27,
+      "global": 38
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Civil Engineering",
+      "count": 8,
+      "morocco": 7,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Cloud",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Construction",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Data Engineering",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "ERP",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Electrical Engineering",
+      "count": 4,
+      "morocco": 1,
+      "global": 3
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Embedded Systems",
+      "count": 4,
+      "morocco": 2,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Energy Engineering",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Enterprise Architecture",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Frontend",
+      "count": 28,
+      "morocco": 11,
+      "global": 17
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Full Stack",
+      "count": 12,
+      "morocco": 8,
+      "global": 4
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Full Stack, Backend, ML/AI",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Full-Stack",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Full-stack",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Fullstack",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Hardware",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Industrial Engineering",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Infrastructure",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "ML/AI",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Maintenance Engineering",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Manufacturing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Materials Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Mechanical Engineering",
+      "count": 3,
+      "morocco": 0,
+      "global": 3
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Mobile",
+      "count": 4,
+      "morocco": 2,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Network",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Network Engineering",
+      "count": 3,
+      "morocco": 1,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Operations & Manufacturing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Optical Engineering",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Other",
+      "count": 18,
+      "morocco": 2,
+      "global": 16
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Project Management",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "QA",
+      "count": 6,
+      "morocco": 3,
+      "global": 3
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "QA & Testing",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Quality Assurance",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "RF Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "SRE",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Software Architecture",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Software Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Structural Engineering",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Systems Architecture",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Systems Engineering",
+      "count": 5,
+      "morocco": 0,
+      "global": 5
+    },
+    {
+      "category": "Engineering",
+      "subcategory": "Telecommunications",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Engineering|Data & AI",
+      "subcategory": "Data Engineering",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Accounting",
+      "count": 37,
+      "morocco": 37,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Administration",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Administrative",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Administrative & Financial Support",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Administrative Assistant",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Administrative Finance",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Asset Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Audit",
+      "count": 4,
+      "morocco": 3,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Audit & Compliance",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Business Administration",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Collections",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Compensation & Benefits",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Compliance",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Cost Control",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Credit Analysis",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "ERP Implementation",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Finance",
+      "count": 7,
+      "morocco": 7,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Financial Control",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Fundraising",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "HR",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "HR & Accounting",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "HR & Payroll",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "HR Administration",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "HR Operations",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Human Resources",
+      "count": 5,
+      "morocco": 5,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Legal",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Management Accounting",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Market Analysis",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Operations",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Other",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Payroll",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Procurement",
+      "count": 7,
+      "morocco": 6,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Risk Management",
+      "count": 4,
+      "morocco": 2,
+      "global": 2
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Sales",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Sales & Advisory",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Tax",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Transaction Services",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Finance & Accounting",
+      "subcategory": "Treasury Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "(no subcategory)",
+      "count": 17,
+      "morocco": 13,
+      "global": 4
+    },
+    {
+      "category": "Other",
+      "subcategory": "Academic/Teaching",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Account Management",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Admin",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Administrative",
+      "count": 5,
+      "morocco": 5,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Administrative Assistant",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Administrative Support",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Bid Writing",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Business Development",
+      "count": 7,
+      "morocco": 5,
+      "global": 2
+    },
+    {
+      "category": "Other",
+      "subcategory": "Communications & Marketing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Community & Partnerships",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Community Management",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Compliance",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Consulting",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Content Creation",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Copywriting",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Creative",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Culinary",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Data Entry",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Digital Marketing",
+      "count": 7,
+      "morocco": 7,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "E-commerce",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "E-commerce Management",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "EHS",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "ERP",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Education",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Event Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Facilities Management",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Field Service",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "General Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Growth",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Growth & Acquisition",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Growth & Operations",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HR",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HR & Recruitment",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HR Administration",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HR Recruitment",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HR Systems",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HSE",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "HVAC",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Healthcare",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Hospitality",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Hospitality Management",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Human Resources",
+      "count": 26,
+      "morocco": 25,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "IT Consulting",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "IT Training",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Instructional Design",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Inventory Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Legal",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Logistics",
+      "count": 8,
+      "morocco": 8,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Logistics & Operations",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Logistics & Procurement",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Logistics & Supply Chain",
+      "count": 2,
+      "morocco": 1,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Logistics Coordination, 3D Design",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Maintenance Technician",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Management Consulting",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Manufacturing",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Marketing",
+      "count": 17,
+      "morocco": 17,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Marketing & Communications",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Operations",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Operations Management",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Outreach & Community",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Partnership Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Procurement",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Procurement & Supply Chain",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Project Management",
+      "count": 4,
+      "morocco": 3,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Quality Assurance",
+      "count": 5,
+      "morocco": 5,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Quality Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Recruitment",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Recruitment & Administration",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "SEO",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Sales",
+      "count": 29,
+      "morocco": 22,
+      "global": 7
+    },
+    {
+      "category": "Other",
+      "subcategory": "Sales & Marketing",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Sales Development",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Sales/Marketing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Security & Safety Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Service Delivery",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Social Media",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Supply Chain",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Technical Trades",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Training & Development",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Training & Enablement",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Other",
+      "subcategory": "Training & Support",
+      "count": 3,
+      "morocco": 0,
+      "global": 3
+    },
+    {
+      "category": "Other",
+      "subcategory": "Video Production",
+      "count": 2,
+      "morocco": 2,
+      "global": 0
+    },
+    {
+      "category": "Other",
+      "subcategory": "Workshop Facilitation",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Account Management",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Product",
+      "subcategory": "Business Analysis",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Product",
+      "subcategory": "Business Analyst",
+      "count": 3,
+      "morocco": 1,
+      "global": 2
+    },
+    {
+      "category": "Product",
+      "subcategory": "Business Development",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Product",
+      "subcategory": "Community Management",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Customer Success",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Product",
+      "subcategory": "E-commerce Growth",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "HR Marketing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Marketing",
+      "count": 18,
+      "morocco": 18,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Operations",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "PMO",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Product",
+      "subcategory": "Product Management",
+      "count": 3,
+      "morocco": 2,
+      "global": 1
+    },
+    {
+      "category": "Product",
+      "subcategory": "Product Marketing",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Product Strategy",
+      "count": 2,
+      "morocco": 0,
+      "global": 2
+    },
+    {
+      "category": "Product",
+      "subcategory": "Project Management",
+      "count": 19,
+      "morocco": 9,
+      "global": 10
+    },
+    {
+      "category": "Product",
+      "subcategory": "Sales",
+      "count": 3,
+      "morocco": 3,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Solutions Specialist",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    },
+    {
+      "category": "Product",
+      "subcategory": "Strategy & Corporate Development",
+      "count": 1,
+      "morocco": 1,
+      "global": 0
+    },
+    {
+      "category": "Product",
+      "subcategory": "Technical Program Manager",
+      "count": 1,
+      "morocco": 0,
+      "global": 1
+    }
+  ],
+  "sources_morocco": {
+    "stagiaires": 494,
+    "rekrute": 39
+  },
+  "sources_global": {
+    "adzuna": 220,
+    "remotive": 24,
+    "weworkremotely": 41,
+    "jsearch": 20
+  },
+  "experience_levels_morocco": {
+    "intern": 352,
+    "junior": 109,
+    "mid": 62,
+    "senior": 10
+  },
+  "experience_levels_global": {
+    "mid": 129,
+    "senior": 113,
+    "intern": 23,
+    "junior": 18,
+    "": 22
+  }
+}
