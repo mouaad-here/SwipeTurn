@@ -94,3 +94,5 @@ backend/venv/
 backend/.venv/
 pipeline/venv/
 pipeline/.venv/
+
+_developer_docs/

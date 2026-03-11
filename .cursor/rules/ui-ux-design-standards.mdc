@@ -1,0 +1,101 @@
+---
+description: UI/UX design principles for SwipTurn — visual design, interaction, accessibility, mobile-first
+alwaysApply: true
+---
+
+# UI/UX Design Standards (React Native Mobile)
+
+## Visual Design
+- Establish a clear visual hierarchy to guide user attention
+- Use `constants/colors.ts` for a cohesive palette — never hardcode colors
+- Use typography effectively (Clash Display for headings, Satoshi for body) via `constants/fonts.ts`
+- Maintain sufficient contrast for legibility (WCAG 2.1 AA: 4.5:1 for text)
+- Design with a consistent style across the application
+
+## Interaction Design
+- Create intuitive navigation (Expo Router, bottom tabs, clear back/continue flows)
+- Use familiar UI components (chips, buttons, cards) to reduce cognitive load
+- Provide clear calls-to-action (Continue, Skip, Done) to guide user behavior
+- Use `useWindowDimensions` / `Dimensions.get` for responsive layouts
+- Use animations judiciously (`react-native-reanimated`) to enhance UX
+
+## Accessibility (React Native)
+- Add `accessibilityLabel` and `accessibilityRole` to interactive elements
+- Provide `accessibilityHint` for non-obvious actions
+- Ensure touch targets are at least 44x44 pt (minWidth/minHeight)
+- Support Dynamic Type / system font scaling where applicable
+- Test with TalkBack (Android) and VoiceOver (iOS)
+
+## Performance
+- Use `expo-image` for images (lazy loading, optimized formats)
+- Implement lazy loading for non-critical content
+- Memoize lists with `FlatList`; use `keyExtractor` and avoid inline functions
+- Monitor render performance; avoid unnecessary re-renders
+
+## User Feedback
+- Use `ActivityIndicator` for async operations (loading states)
+- Provide clear error messages and recovery options (retry buttons)
+- Disable buttons during submit (`disabled={loading}`)
+- Use haptic feedback for meaningful interactions when appropriate
+
+## Information Architecture
+- Organize content logically (onboarding steps, tab structure)
+- Use clear labeling and categorization for navigation
+- Implement effective search when applicable (explore tab)
+- Maintain consistent placement of recurring elements (back top-left, continue bottom)
+
+## Mobile-First Design
+- Design for mobile devices first (SwipTurn is mobile app)
+- Use touch-friendly targets: min 44x44 pt for buttons, chips, icons
+- Implement gestures for common actions (swipe cards on swipe tab)
+- Consider thumb zones for primary actions (bottom tabs, continue button)
+
+## Consistency
+- Adhere to `constants/colors.ts` and `constants/fonts.ts`
+- Use consistent terminology (Continue, Skip, Done, Saved)
+- Maintain consistent positioning (header back left, step indicator center)
+- Ensure visual consistency across onboarding, tabs, auth
+
+## Layout and Responsiveness
+- Use Flexbox for all layouts (React Native default)
+- Use `useSafeAreaInsets` for safe areas — never hardcode padding
+- Use `useWindowDimensions` when layout must adapt to screen size
+- Test on multiple device sizes and orientations
+
+## Touch Targets
+- Interactive elements: min 44x44 pt (buttons, back, icons)
+- Adequate spacing (gap 8–16) between adjacent touch targets
+- Use `Pressable` with `hitSlop` when needed for small icons
+
+## Forms
+- Use `KeyboardAvoidingView` for forms with multiple fields
+- Use appropriate `keyboardType` for inputs (email, numeric)
+- Implement inline validation and clear error messaging
+- Use `ScrollView` so keyboard does not obscure content
+
+## Testing
+- Test on actual devices, not just simulators
+- Verify touch target sizes and spacing
+- Test with accessibility features enabled
+- Conduct usability testing across device types
+
+---
+
+## SwipTurn Project Verification
+
+### Aligned
+- **Color palette**: Centralized in `constants/colors.ts`, brand accent #FF4422
+- **Typography**: Clash Display + Satoshi via `constants/fonts.ts`
+- **Touch targets**: Buttons 48–56pt minHeight, back/icons 48x48, category chips minHeight 44
+- **Loading states**: ActivityIndicator used on swipe, explore, saved, profile, login, signup, preview
+- **Error handling**: Login/signup show error text; profile has retry; job-detail handles errors
+- **Navigation**: Expo Router, tab bar, clear onboarding flow
+- **Responsive**: useSafeAreaInsets, Dimensions in swipe
+- **Mobile-first**: Native app, touch-optimized
+
+### Gaps to Address
+- **Accessibility**: No `accessibilityLabel`/`accessibilityRole` on interactive elements — add for buttons, chips, tabs, links
+- **CustomTabBar**: Hardcodes colors instead of `constants/colors.ts` — align with design system
+- **Images**: Uses standard Image or none; consider `expo-image` for job/company logos when added
+- **Analytics**: Not implemented — add when tracking user behavior is needed
+- **Design docs**: No style guide or user flow diagrams — create when team grows
