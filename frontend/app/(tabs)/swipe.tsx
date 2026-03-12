@@ -1,6 +1,7 @@
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { BottomSheetFooter, BottomSheetFooterProps, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -267,6 +268,16 @@ export default function SwipeScreen() {
     );
 
     const { getAuthHeaders } = useAuthHeaders();
+
+    // Whenever the user navigates back to the Swipe tab, refresh the feed so that
+    // changes made in Profile (geography, seniority, job type, domains, CV) are
+    // reflected in the recommendations.
+    useFocusEffect(
+        React.useCallback(() => {
+            // Silent refresh so existing cards stay visible until new feed arrives
+            loadFeed(true);
+        }, [])
+    );
 
     const loadFeed = async (silent = false) => {
         if (loadingRef.current) return;
