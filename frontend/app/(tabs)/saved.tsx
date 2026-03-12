@@ -10,9 +10,12 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    LayoutAnimation,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
+    UIManager,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -86,7 +89,14 @@ export default function SavedScreen() {
     const loadingRef = useRef(false);
     const lastFetchedAtRef = useRef(0);
     const suppressNextFocusRef = useRef(false);
-    const COOLDOWN_MS = 10000;
+    const COOLDOWN_MS = 30000; // 30s cooldown between automatic refetches
+
+    // Enable smooth list animations on Android
+    useEffect(() => {
+        if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+            UIManager.setLayoutAnimationEnabledExperimental(true);
+        }
+    }, []);
 
     const loadSaved = useCallback(async (force = false) => {
         if (suppressNextFocusRef.current && !force) {
@@ -250,6 +260,8 @@ export default function SavedScreen() {
     };
 
     const handleRemove = async (item: SavedJob) => {
+        // Smooth row collapse animation
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         // Optimistic removal
         setJobMap(prev => { const next = new Map(prev); next.delete(item.id); return next; });
         setJobOrder(prev => prev.filter(id => id !== item.id));
@@ -258,6 +270,7 @@ export default function SavedScreen() {
             const { API_URL } = await import('@/constants/api');
             await fetch(`${API_URL}/swipes/${item.id}`, { method: 'DELETE', headers });
         } catch {
+            // If backend fails, refresh from server truth
             loadSaved(true);
         }
     };
@@ -341,30 +354,37 @@ export default function SavedScreen() {
                 )}
             </View>
 
-            {loading ? (
+            {loading && allJobs.length === 0 ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={COLORS.accent} />
                 </View>
             ) : (
-                <FlatList
-                    data={allJobs}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
-                    contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <View style={styles.center}>
-                            <Text style={styles.emptyIcon}>📋</Text>
-                            <Text style={styles.emptyTitle}>Nothing saved yet</Text>
-                            <Text style={styles.emptySubtitle}>Swipe right on jobs to save them here.</Text>
+                <>
+                    <FlatList
+                        data={allJobs}
+                        keyExtractor={item => item.id}
+                        renderItem={renderItem}
+                        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                            <View style={styles.center}>
+                                <Text style={styles.emptyIcon}>📋</Text>
+                                <Text style={styles.emptyTitle}>Nothing saved yet</Text>
+                                <Text style={styles.emptySubtitle}>Swipe right on jobs to save them here.</Text>
+                            </View>
+                        }
+                        ListFooterComponent={
+                            allJobs.length > 0 ? (
+                                <Text style={styles.hint}>Long-press a card to remove it</Text>
+                            ) : null
+                        }
+                    />
+                    {loading && allJobs.length > 0 && (
+                        <View style={styles.inlineLoader}>
+                            <ActivityIndicator size="small" color={COLORS.accent} />
                         </View>
-                    }
-                    ListFooterComponent={
-                        allJobs.length > 0 ? (
-                            <Text style={styles.hint}>Long-press a card to remove it</Text>
-                        ) : null
-                    }
-                />
+                    )}
+                </>
             )}
         </View>
     );
@@ -513,5 +533,10 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 16,
         marginBottom: 8,
+    },
+    inlineLoader: {
+        position: 'absolute',
+        top: 8,
+        right: 24,
     },
 });
