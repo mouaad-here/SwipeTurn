@@ -95,6 +95,7 @@ def get_job_feed(
         
         jobs_res = query.execute()
         raw_jobs = jobs_res.data or []
+        print(f"[feed] raw_jobs={len(raw_jobs)} for user_id={user_id}, page={page}, limit={limit}")
 
         # 3. Exclude swiped, deduplicate
         seen_title_company: set = set()
@@ -112,6 +113,8 @@ def get_job_feed(
                 continue
             seen_title_company.add(dedup_key)
             candidate_jobs.append(j)
+
+        print(f"[feed] candidate_jobs_after_exclusions={len(candidate_jobs)} (before domain filter)")
 
         # 4. Domain filter
         user_domains = prefs.get("domains") or []
@@ -132,6 +135,7 @@ def get_job_feed(
                 return any(kw in text for kw in domain_kws)
 
             candidate_jobs = [j for j in candidate_jobs if _matches_user_domain(j)]
+            print(f"[feed] candidate_jobs_after_domain_filter={len(candidate_jobs)}")
 
         # 5. Resolve user embedding
         user_embedding = None
@@ -165,6 +169,7 @@ def get_job_feed(
 
         # 7. Filter and sort
         strict_jobs = [j for j in scored_jobs if float(j.get("match_score") or 0) >= MIN_FEED_SCORE]
+        print(f"[feed] scored_jobs={len(scored_jobs)}, strict_jobs_after_min_score={len(strict_jobs)}, MIN_FEED_SCORE={MIN_FEED_SCORE}")
         strict_jobs.sort(
             key=lambda x: (float(x.get("match_score") or 0.0), _safe_posted_at_ts(x)),
             reverse=True,

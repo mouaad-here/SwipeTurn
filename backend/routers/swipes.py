@@ -15,42 +15,17 @@ class SwipeAction(BaseModel):
 class SwipeStatusUpdate(BaseModel):
     status: str
 
-# For testing use high limit; set env FREE_SWIPE_LIMIT=10 for production
-FREE_SWIPE_LIMIT = int(os.environ.get("FREE_SWIPE_LIMIT", "999"))
-
 @router.post("")
 def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
-    """Registers a left or right swipe, enforcing the daily free swipe limit."""
+    """Registers a left or right swipe.
+
+    NOTE (MVP): Daily limits are disabled in this branch so we don't depend
+    on extra user columns like swipes_today / swipes_reset_at. This makes
+    the endpoint robust even if the DB schema doesn't have those fields yet.
+    """
     user_id = user["id"]
-    
-    # 1. Check daily limit cycle
-    today_date = datetime.now(timezone.utc).date()
-    reset_date = None
-    
-    # Handle potentially missing or differently formatted timestamp strings in MVP DB rows
-    if user.get("swipes_reset_at"):
-        try:
-            reset_date = datetime.fromisoformat(user["swipes_reset_at"].replace("Z", "+00:00")).date()
-        except Exception:
-            pass
-            
-    updates = {}
-    swipes_today = user.get("swipes_today", 0)
-    
-    if not reset_date or reset_date < today_date:
-        # It's a new day, reset their counters
-        swipes_today = 0
-        updates["swipes_today"] = 0
-        updates["swipes_reset_at"] = datetime.now(timezone.utc).isoformat()
-        
-    # 2. Enforce limits for free users
-    if user.get("subscription", "free") == "free" and swipes_today >= FREE_SWIPE_LIMIT:
-        raise HTTPException(
-            status_code=403, 
-            detail=f"You have reached your daily limit of {FREE_SWIPE_LIMIT} free swipes. Upgrade to premium for unlimited swipes!"
-        )
-        
-    # 3. Register the swipe
+
+    # Register the swipe
     swipe_data = {
         "user_id": user_id,
         "job_id": action.job_id,
@@ -60,15 +35,10 @@ def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
     
     try:
         get_supabase().table("swipes").insert(swipe_data).execute()
-        
-        # Increment their swipe counter
-        updates["swipes_today"] = swipes_today + 1
-        get_supabase().table("users").update(updates).eq("id", user_id).execute()
-        
+
         return {
             "success": True, 
-            "message": "Swipe registered", 
-            "swipes_remaining": FREE_SWIPE_LIMIT - (swipes_today + 1)
+            "message": "Swipe registered"
         }
     except Exception as e:
         # Check if it's a unique constraint violation
@@ -76,8 +46,7 @@ def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
         if "unique" in error_str or "already exists" in error_str:
              return {
                 "success": True, 
-                "message": "Already swiped", 
-                "swipes_remaining": FREE_SWIPE_LIMIT - swipes_today
+                "message": "Already swiped"
             }
         print(f"[swipes] INTERNAL ERROR: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to register swipe: {str(e)}")

@@ -20,6 +20,7 @@ function getInitials(name: string | undefined): string {
 }
 
 const FETCH_TIMEOUT_MS = 15000;
+const FEED_CACHE_KEY = 'swipturn_feed_cache';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -165,6 +166,10 @@ export default function ProfileScreen() {
             });
             // Optimistic: update local state immediately
             setUser((prev: any) => prev ? { ...prev, preferences: { ...prev.preferences, ...patch } } : prev);
+            // Invalidate swipe feed cache so home recommendations refresh on next visit
+            try {
+                await AsyncStorage.removeItem(FEED_CACHE_KEY);
+            } catch { }
         } catch { }
     };
 
