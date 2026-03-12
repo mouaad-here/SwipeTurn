@@ -2,7 +2,7 @@ import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator'
 import { API_URL } from '@/constants/api';
 import { COLORS } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
-import { clearDraft, getDraft, type OnboardingState } from '@/lib/onboarding-storage';
+import { clearDraft, getDraft, saveDraftStep, type OnboardingState } from '@/lib/onboarding-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -183,9 +183,22 @@ export default function PreviewScreen() {
         return;
       }
       if (data.success && data.data) {
-        setExtractedSkills(Array.isArray(data.data.skills) ? data.data.skills : []);
-        setExtractedExperienceLevel(data.data.experience_level ?? null);
+        const newSkills = Array.isArray(data.data.skills) ? data.data.skills : [];
+        const newSeniority = data.data.experience_level ?? draft.seniority;
+
+        setExtractedSkills(newSkills);
+        setExtractedExperienceLevel(newSeniority);
         setCvUploaded(true);
+
+        // Merge into current draft state immediately so the UI chips update!
+        const mergedKeywords = Array.from(new Set([...(draft.keywords || []), ...newSkills]));
+        const updatedDraft = {
+          ...draft,
+          keywords: mergedKeywords,
+          seniority: newSeniority
+        };
+        setDraft(updatedDraft);
+        await saveDraftStep(updatedDraft);
       }
     } catch (err) {
       setCvError(err instanceof Error ? err.message : 'Upload failed');
@@ -283,25 +296,9 @@ export default function PreviewScreen() {
             <View style={styles.extractedBlock}>
               <View style={styles.extractedRow}>
                 <Ionicons name="checkmark-circle" size={20} color={COLORS.accentSuccess} />
-                <Text style={styles.extractedTitle}>CV uploaded — we use this for matching</Text>
+                <Text style={styles.extractedTitle}>CV uploaded successfully</Text>
               </View>
-              {extractedExperienceLevel && (
-                <Text style={styles.extractedMeta}>
-                  Experience level: {SENIORITY_LABELS[extractedExperienceLevel] ?? extractedExperienceLevel}
-                </Text>
-              )}
-              {extractedSkills.length > 0 && (
-                <>
-                  <Text style={styles.skillsUsedLabel}>Skills we use for matching:</Text>
-                  <View style={styles.skillsChipWrap}>
-                    {extractedSkills.map((s) => (
-                      <View key={s} style={styles.skillChip}>
-                        <Text style={styles.skillChipText}>{s}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
+              <Text style={[styles.cvSectionHint, { marginTop: 4 }]}>Your skills and experience have automatically been added to your profile above.</Text>
             </View>
           )}
           {cvError ? <Text style={styles.cvErrorText}>{cvError}</Text> : null}

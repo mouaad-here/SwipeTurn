@@ -110,53 +110,50 @@ export default function DomainsScreen() {
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCategories.includes(cat.id);
+            const isExpanded = expandedCategories.some(c => c.id === cat.id);
             return (
-              <Pressable
-                key={cat.id}
-                style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
-                onPress={() => toggleCategory(cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryLabel,
-                    isSelected && styles.categoryLabelSelected,
-                  ]}
+              <View key={cat.id} style={{ width: '100%', marginBottom: 12 }}>
+                <Pressable
+                  style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+                  onPress={() => toggleCategory(cat.id)}
                 >
-                  {cat.label}
-                </Text>
-              </Pressable>
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      isSelected && styles.categoryLabelSelected,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </Pressable>
+
+                {isExpanded && cat.subcategories.length > 0 && (
+                  <View style={[styles.subChipRow, { marginTop: 12, paddingLeft: 12 }]}>
+                    {cat.subcategories.map((sub) => {
+                      const isSelectedSub = selectedSubs.includes(sub);
+                      return (
+                        <Pressable
+                          key={sub}
+                          style={[styles.subChip, isSelectedSub && styles.subChipSelected]}
+                          onPress={() => toggleSubcategory(sub)}
+                        >
+                          <Text
+                            style={[
+                              styles.subChipLabel,
+                              isSelectedSub && styles.subChipLabelSelected,
+                            ]}
+                          >
+                            {sub}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
             );
           })}
         </View>
-
-        {expandedCategories.some((c) => c.subcategories.length > 0) && (
-          <View style={styles.subsection}>
-            <Text style={styles.subsectionHeading}>Subcategories</Text>
-            <View style={styles.subChipRow}>
-              {expandedCategories.flatMap((c) =>
-                c.subcategories.map((sub) => {
-                  const isSelected = selectedSubs.includes(sub);
-                  return (
-                    <Pressable
-                      key={sub}
-                      style={[styles.subChip, isSelected && styles.subChipSelected]}
-                      onPress={() => toggleSubcategory(sub)}
-                    >
-                      <Text
-                        style={[
-                          styles.subChipLabel,
-                          isSelected && styles.subChipLabelSelected,
-                        ]}
-                      >
-                        {sub}
-                      </Text>
-                    </Pressable>
-                  );
-                })
-              )}
-            </View>
-          </View>
-        )}
       </ScrollView>
 
       <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
@@ -218,9 +215,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    flexDirection: 'column',
+    width: '100%',
   },
   categoryChip: {
     borderWidth: 2,
