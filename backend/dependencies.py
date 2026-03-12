@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, Header
 from jose import jwt
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
@@ -13,7 +13,9 @@ def get_supabase() -> Client:
     global _supabase
     if _supabase is None:
         print("Initializing Supabase client...")
-        _supabase = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+        # Use longer timeouts to prevent WinError 10035 on Windows
+        options = ClientOptions(postgrest_client_timeout=20.0, storage_client_timeout=20.0)
+        _supabase = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY, options=options)
         print("Supabase client initialized.")
     return _supabase
 
@@ -88,4 +90,10 @@ def get_current_user(payload: Dict[str, Any] = Depends(get_token_payload)) -> Di
         return insert_response.data[0]
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[get_current_user] DATABASE ERROR: {e}\n{error_trace}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Database/Auth Error in get_current_user: {str(e)}"
+        )

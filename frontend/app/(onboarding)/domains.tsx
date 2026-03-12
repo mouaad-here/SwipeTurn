@@ -14,15 +14,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const CATEGORIES: { id: string; label: string; subcategories: string[] }[] = [
+export const CATEGORIES: { id: string; label: string; subcategories: string[] }[] = [
   { id: 'engineering', label: 'Engineering', subcategories: ['Frontend', 'Backend', 'Mobile', 'Fullstack', 'Embedded'] },
   { id: 'data_ai', label: 'Data & AI', subcategories: ['Data Science', 'Data Engineering', 'ML/AI', 'BI / Data Analysis'] },
-  { id: 'devops_cloud', label: 'DevOps & Cloud', subcategories: [] },
-  { id: 'design_ux', label: 'Design & UX', subcategories: [] },
-  { id: 'cybersecurity', label: 'Cybersecurity', subcategories: [] },
-  { id: 'finance_accounting', label: 'Finance & Accounting', subcategories: [] },
-  { id: 'customer_support', label: 'Customer Support', subcategories: [] },
-  { id: 'product', label: 'Product', subcategories: [] },
+  { id: 'devops_cloud', label: 'DevOps & Cloud', subcategories: ['AWS', 'GCP', 'Azure', 'CI/CD', 'Kubernetes', 'Docker'] },
+  { id: 'design_ux', label: 'Design & UX', subcategories: ['UI Design', 'UX Research', 'Product Design', 'Figma'] },
+  { id: 'cybersecurity', label: 'Cybersecurity', subcategories: ['Penetration Testing', 'Security Analysis', 'SOC'] },
+  { id: 'finance_accounting', label: 'Finance & Accounting', subcategories: ['Financial Analysis', 'Audit', 'Controlling'] },
+  { id: 'customer_support', label: 'Customer Support', subcategories: ['Technical Support', 'Customer Success'] },
+  { id: 'product', label: 'Product', subcategories: ['Product Management', 'Product Strategy', 'Agile'] },
   { id: 'other', label: 'Other', subcategories: [] },
 ];
 
@@ -30,12 +30,15 @@ export default function DomainsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
 
   const loadDraft = useCallback(async () => {
     const draft = await getDraft();
-    if (draft.domains?.length) setSelectedCategories(draft.domains);
-    if (draft.subcategories?.length) setSelectedSubs(draft.subcategories);
+    if (draft.domains?.length) {
+      const ids = CATEGORIES
+        .filter(c => draft.domains!.includes(c.label))
+        .map(c => c.id);
+      setSelectedCategories(ids);
+    }
   }, []);
 
   useEffect(() => {
@@ -43,23 +46,8 @@ export default function DomainsScreen() {
   }, [loadDraft]);
 
   const toggleCategory = (id: string) => {
-    const cat = CATEGORIES.find((c) => c.id === id);
-    const isRemoving = selectedCategories.includes(id);
-
     setSelectedCategories((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
-    );
-
-    if (isRemoving && cat && cat.subcategories.length > 0) {
-      setSelectedSubs((prev) =>
-        prev.filter((s) => !cat.subcategories.includes(s))
-      );
-    }
-  };
-
-  const toggleSubcategory = (sub: string) => {
-    setSelectedSubs((prev) =>
-      prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub]
     );
   };
 
@@ -71,17 +59,18 @@ export default function DomainsScreen() {
     const domainLabels = selectedCategories.map(
       (id) => CATEGORIES.find((c) => c.id === id)?.label ?? id
     );
-    await saveDraftStep({
-      domains: domainLabels,
-      subcategories: selectedSubs,
-    });
-    router.push('/(onboarding)/skills');
-  };
+    await saveDraftStep({ domains: domainLabels });
 
-  // Show subcategories for all selected categories. If none selected, default show all available subcategories to reveal the feature.
-  const expandedCategories = selectedCategories.length > 0
-    ? CATEGORIES.filter((c) => selectedCategories.includes(c.id))
-    : CATEGORIES;
+    // If any selected domain has subcategories, go to the subcategories screen
+    const hasSubcategories = selectedCategories.some(
+      id => CATEGORIES.find(c => c.id === id)?.subcategories?.length ?? 0 > 0
+    );
+    if (selectedCategories.length > 0 && hasSubcategories) {
+      router.push('/(onboarding)/subcategories');
+    } else {
+      router.push('/(onboarding)/skills');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -104,53 +93,27 @@ export default function DomainsScreen() {
       >
         <Text style={styles.heading}>What field interests you?</Text>
         <Text style={styles.subtitle}>
-          Select categories and subcategories that match your interests.
+          Pick one or more domains that match your career interests.
         </Text>
 
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCategories.includes(cat.id);
-            const isExpanded = expandedCategories.some(c => c.id === cat.id);
             return (
-              <View key={cat.id} style={{ width: '100%', marginBottom: 12 }}>
-                <Pressable
-                  style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
-                  onPress={() => toggleCategory(cat.id)}
+              <Pressable
+                key={cat.id}
+                style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+                onPress={() => toggleCategory(cat.id)}
+              >
+                <Text
+                  style={[
+                    styles.categoryLabel,
+                    isSelected && styles.categoryLabelSelected,
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      isSelected && styles.categoryLabelSelected,
-                    ]}
-                  >
-                    {cat.label}
-                  </Text>
-                </Pressable>
-
-                {isExpanded && cat.subcategories.length > 0 && (
-                  <View style={[styles.subChipRow, { marginTop: 12, paddingLeft: 12 }]}>
-                    {cat.subcategories.map((sub) => {
-                      const isSelectedSub = selectedSubs.includes(sub);
-                      return (
-                        <Pressable
-                          key={sub}
-                          style={[styles.subChip, isSelectedSub && styles.subChipSelected]}
-                          onPress={() => toggleSubcategory(sub)}
-                        >
-                          <Text
-                            style={[
-                              styles.subChipLabel,
-                              isSelectedSub && styles.subChipLabelSelected,
-                            ]}
-                          >
-                            {sub}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
+                  {cat.label}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
@@ -158,7 +121,9 @@ export default function DomainsScreen() {
 
       <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
         <Pressable style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>
+            {selectedCategories.length > 0 ? 'Choose Subcategories →' : 'Skip & Continue'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -182,11 +147,6 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  progress: {
-    fontFamily: 'Satoshi-Regular',
-    fontSize: 14,
-    color: COLORS.textMeta,
   },
   skipButton: {
     paddingVertical: 12,
@@ -215,8 +175,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   categoryGrid: {
-    flexDirection: 'column',
-    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   categoryChip: {
     borderWidth: 2,
@@ -236,44 +197,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   categoryLabelSelected: {
-    fontFamily: 'Satoshi-Medium',
-    color: COLORS.textPrimary,
-  },
-  subsection: {
-    marginTop: 32,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  subsectionHeading: {
-    fontFamily: 'ClashDisplay-Bold',
-    fontSize: 18,
-    color: COLORS.textPrimary,
-    marginBottom: 16,
-  },
-  subChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  subChip: {
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface2,
-    borderRadius: 50,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-  },
-  subChipSelected: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.accentTint,
-  },
-  subChipLabel: {
-    fontFamily: 'Satoshi-Regular',
-    fontSize: 14,
-    color: COLORS.textPrimary,
-  },
-  subChipLabelSelected: {
     fontFamily: 'Satoshi-Medium',
     color: COLORS.textPrimary,
   },

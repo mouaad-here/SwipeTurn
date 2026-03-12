@@ -1,30 +1,92 @@
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuth } from '@clerk/clerk-expo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const ONBOARDING_CACHE_KEY = 'swipturn:onboarding_done';
+
+/** Wait up to maxMs for Clerk to issue a token, polling every intervalMs. */
+async function waitForToken(
+    getToken: () => Promise<string | null>,
+    maxMs = 4000,
+    intervalMs = 200
+): Promise<string | null> {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+        const token = await getToken();
+        if (token) return token;
+        await new Promise(r => setTimeout(r, intervalMs));
+    }
+    return null;
+}
 
 export default function WelcomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { isLoaded, isSignedIn } = useAuth();
+    const { isLoaded, isSignedIn, getToken } = useAuth();
+    const [checking, setChecking] = useState(true);
 
-    // Don't auto-redirect signed-in users: always show welcome first so users can choose
-    // "Continue without account", "Get Started", or "Log in". Auth screens will redirect
-    // to home when appropriate.
-    // useEffect(() => {
-    //     if (isLoaded && isSignedIn) {
-    //         router.replace('/(tabs)/swipe');
-    //     }
-    // }, [isLoaded, isSignedIn]);
+    useEffect(() => {
+        if (!isLoaded) return;
 
-    if (!isLoaded) {
+        // If signed in, immediately start the onboarding check
+        if (isSignedIn) {
+            (async () => {
+                try {
+                    const cached = await AsyncStorage.getItem(ONBOARDING_CACHE_KEY);
+                    if (cached === 'true') {
+                        router.replace('/(tabs)/swipe');
+                        return;
+                    }
+
+                    const token = await waitForToken(getToken);
+                    if (!token) {
+                        setChecking(false);
+                        return;
+                    }
+
+                    const { API_URL } = await import('@/constants/api');
+                    const res = await fetch(`${API_URL}/users/me`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data?.onboarding_completed_at) {
+                            await AsyncStorage.setItem(ONBOARDING_CACHE_KEY, 'true');
+                            router.replace('/(tabs)/swipe');
+                            return;
+                        }
+                    }
+                } catch (_) { }
+                // Signed in but onboarding not done — go to onboarding
+                router.replace('/(onboarding)/geography');
+            })();
+            return;
+        }
+
+        // Not signed in when Clerk first loads.
+        // BUT: after Google OAuth on Android, the app completely reloads.
+        // Clerk needs ~1-2s to hydrate the session from cache after deep-link.
+        // Give it a short grace period before showing the Welcome screen.
+        const graceTimer = setTimeout(() => {
+            // If still not signed in after the grace period, this is a real
+            // unauthenticated user (or a returning user whose session expired).
+            setChecking(false);
+        }, 1500);
+
+        return () => clearTimeout(graceTimer);
+    }, [isLoaded, isSignedIn]);
+
+    // Show spinner while Clerk loads or while we check onboarding status
+    if (!isLoaded || checking) {
         return (
             <View style={[styles.container, styles.centered]}>
                 <StatusBar style="dark" />
-                <Text style={styles.logoPrefix}>Swipe</Text>
-                <Text style={styles.logoSuffix}>Turn</Text>
+                <ActivityIndicator size="large" color={COLORS.accent} />
             </View>
         );
     }
@@ -78,6 +140,10 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
+    },
+    centered: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     topArea: {
         flex: 1,
@@ -187,8 +253,4 @@ const styles = StyleSheet.create({
         color: COLORS.accent,
     },
     loginLinkTouch: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
-    centered: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
 });

@@ -1,16 +1,17 @@
 import { COLORS } from '@/constants/colors';
 import { useAuth, useOAuth, useSignUp } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -18,18 +19,35 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+function useWarmUpBrowser() {
+    useEffect(() => {
+        if (Platform.OS !== 'web') {
+            void WebBrowser.warmUpAsync();
+            return () => { void WebBrowser.coolDownAsync(); };
+        }
+    }, []);
+}
+
 export default function SignupScreen() {
+    useWarmUpBrowser();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isLoaded, signUp, setActive } = useSignUp();
     const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
     const { isSignedIn } = useAuth();
 
+    // One-time guard only — do NOT watch isSignedIn changes (races with OAuth handler)
     useEffect(() => {
-        if (isLoaded && isSignedIn) {
-            router.replace('/(onboarding)/geography');
-        }
-    }, [isLoaded, isSignedIn]);
+        if (!isLoaded || !isSignedIn) return;
+        (async () => {
+            try {
+                const cached = await AsyncStorage.getItem('swipturn:onboarding_done');
+                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/');
+            } catch {
+                router.replace('/');
+            }
+        })();
+    }, [isLoaded]); // intentionally omit isSignedIn
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -101,20 +119,20 @@ export default function SignupScreen() {
         }
     };
 
-    const handleGoogleLogin = async () => {
+    const handleGoogleLogin = useCallback(async () => {
         try {
-            const { createdSessionId, setActive } = await startOAuthFlow({
-                redirectUrl: Linking.createURL('/(onboarding)/geography', { scheme: 'swipeturn' })
+            const { createdSessionId, setActive: setOAuthActive } = await startOAuthFlow({
+                redirectUrl: Linking.createURL('/', { scheme: 'swipeturn' })
             });
 
-            if (createdSessionId && setActive) {
-                await setActive({ session: createdSessionId });
+            if (createdSessionId && setOAuthActive) {
+                await setOAuthActive({ session: createdSessionId });
                 router.replace('/(onboarding)/geography');
             }
         } catch (err) {
             console.error("OAuth error", err);
         }
-    };
+    }, [startOAuthFlow, router]);
 
     return (
         <KeyboardAvoidingView
@@ -122,165 +140,159 @@ export default function SignupScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
         >
-            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]} bounces={false}>
-                <View style={styles.container}>
-                    <StatusBar style="dark" />
+            <View style={[styles.container, { paddingTop: Math.max(insets.top + 20, 60), paddingBottom: Math.max(insets.bottom, 20) }]}>
+                <StatusBar style="dark" />
 
-                    <Pressable onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-                    </Pressable>
+                <Pressable onPress={() => router.back()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+                </Pressable>
 
-                    <Text style={styles.heading}>Create Account</Text>
+                <Text style={styles.heading}>Create Account</Text>
 
-                    {verificationPending ? (
-                        <View style={styles.form}>
-                            <Text style={styles.verifyPrompt}>
-                                We sent a verification code to {email}. Enter it below.
-                            </Text>
-                            <Text style={[styles.label, { marginTop: 20 }]}>Verification code</Text>
-                            <View style={styles.inputContainer}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter 6-digit code"
-                                    placeholderTextColor="#9CA3AF"
-                                    value={verificationCode}
-                                    onChangeText={setVerificationCode}
-                                    keyboardType="number-pad"
-                                    maxLength={6}
-                                    autoFocus
-                                />
-                            </View>
-                            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-                            <Pressable
-                                style={[styles.continueButton, loading && styles.continueButtonDisabled]}
-                                onPress={handleVerification}
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <ActivityIndicator color="white" />
-                                ) : (
-                                    <Text style={styles.continueButtonText}>Verify email</Text>
-                                )}
-                            </Pressable>
-                            <Pressable
-                                style={styles.secondaryButton}
-                                onPress={() => { setVerificationPending(false); setVerificationCode(''); setError(''); }}
-                                disabled={loading}
-                            >
-                                <Text style={styles.secondaryButtonText}>Use a different email</Text>
-                            </Pressable>
+                {verificationPending ? (
+                    <View style={styles.form}>
+                        <Text style={styles.verifyPrompt}>
+                            We sent a verification code to {email}. Enter it below.
+                        </Text>
+                        <Text style={[styles.label, { marginTop: 20 }]}>Verification code</Text>
+                        <View style={styles.inputContainer}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter 6-digit code"
+                                placeholderTextColor="#9CA3AF"
+                                value={verificationCode}
+                                onChangeText={setVerificationCode}
+                                keyboardType="number-pad"
+                                maxLength={6}
+                                autoFocus
+                            />
                         </View>
-                    ) : (
-                        <View style={styles.form}>
-                            <View style={styles.nameRow}>
-                                <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="First Name"
-                                        placeholderTextColor="#9CA3AF"
-                                        value={firstName}
-                                        onChangeText={setFirstName}
-                                        autoCorrect={false}
-                                    />
-                                </View>
-                                <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Last Name"
-                                        placeholderTextColor="#9CA3AF"
-                                        value={lastName}
-                                        onChangeText={setLastName}
-                                        autoCorrect={false}
-                                    />
-                                </View>
-                            </View>
-
-                            <Text style={[styles.label, { marginTop: 20 }]}>Email</Text>
-                            <View style={styles.inputContainer}>
+                        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                        <Pressable
+                            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+                            onPress={handleVerification}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="white" />
+                            ) : (
+                                <Text style={styles.continueButtonText}>Verify email</Text>
+                            )}
+                        </Pressable>
+                        <Pressable
+                            style={styles.secondaryButton}
+                            onPress={() => { setVerificationPending(false); setVerificationCode(''); setError(''); }}
+                            disabled={loading}
+                        >
+                            <Text style={styles.secondaryButtonText}>Use a different email</Text>
+                        </Pressable>
+                    </View>
+                ) : (
+                    <View style={styles.form}>
+                        <View style={styles.nameRow}>
+                            <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter your email"
+                                    placeholder="First Name"
                                     placeholderTextColor="#9CA3AF"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
+                                    value={firstName}
+                                    onChangeText={setFirstName}
                                     autoCorrect={false}
                                 />
                             </View>
-
-                            <Text style={[styles.label, { marginTop: 20 }]}>Password</Text>
-                            <View style={styles.inputContainer}>
+                            <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
                                 <TextInput
-                                    style={[styles.input, { flex: 1 }]}
-                                    placeholder="Enter your password"
+                                    style={styles.input}
+                                    placeholder="Last Name"
                                     placeholderTextColor="#9CA3AF"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPass}
-                                    autoCapitalize="none"
+                                    value={lastName}
+                                    onChangeText={setLastName}
+                                    autoCorrect={false}
                                 />
-                                <Pressable
-                                    onPress={() => setShowPass(!showPass)}
-                                    style={styles.eyeIcon}
-                                >
-                                    <Ionicons
-                                        name={showPass ? "eye-off-outline" : "eye-outline"}
-                                        size={20}
-                                        color={COLORS.textMeta}
-                                    />
-                                </Pressable>
                             </View>
+                        </View>
 
-                            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                        <Text style={[styles.label, { marginTop: 20 }]}>Email</Text>
+                        <View style={styles.inputContainer}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter your email"
+                                placeholderTextColor="#9CA3AF"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                        </View>
 
+                        <Text style={[styles.label, { marginTop: 20 }]}>Password</Text>
+                        <View style={styles.inputContainer}>
+                            <TextInput
+                                style={[styles.input, { flex: 1 }]}
+                                placeholder="Enter your password"
+                                placeholderTextColor="#9CA3AF"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPass}
+                                autoCapitalize="none"
+                            />
                             <Pressable
-                                style={[styles.continueButton, loading && styles.continueButtonDisabled]}
-                                onPress={handleRegister}
-                                disabled={loading}
+                                onPress={() => setShowPass(!showPass)}
+                                style={styles.eyeIcon}
                             >
-                                {loading ? (
-                                    <ActivityIndicator color="white" />
-                                ) : (
-                                    <Text style={styles.continueButtonText}>Continue</Text>
-                                )}
-                            </Pressable>
-
-                            <View style={styles.dividerRow}>
-                                <View style={styles.dividerLine} />
-                                <Text style={styles.dividerText}>OR</Text>
-                                <View style={styles.dividerLine} />
-                            </View>
-
-                            <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
-                                <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
-                                <Text style={styles.googleButtonText}>Continue with Google</Text>
+                                <Ionicons
+                                    name={showPass ? "eye-off-outline" : "eye-outline"}
+                                    size={20}
+                                    color={COLORS.textMeta}
+                                />
                             </Pressable>
                         </View>
-                    )}
 
-                    <View style={styles.termsContainer}>
-                        <Text style={styles.termsText}>
-                            By continuing, you agree to our{' '}
-                            <Text style={styles.termsLink}>Terms of Service</Text>
-                            {' '}and{' '}
-                            <Text style={styles.termsLink}>Privacy Policy</Text>
-                        </Text>
+                        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                        <Pressable
+                            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+                            onPress={handleRegister}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="white" />
+                            ) : (
+                                <Text style={styles.continueButtonText}>Continue</Text>
+                            )}
+                        </Pressable>
+
+                        <View style={styles.dividerRow}>
+                            <View style={styles.dividerLine} />
+                            <Text style={styles.dividerText}>OR</Text>
+                            <View style={styles.dividerLine} />
+                        </View>
+
+                        <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
+                            <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
+                            <Text style={styles.googleButtonText}>Continue with Google</Text>
+                        </Pressable>
                     </View>
+                )}
+
+                <View style={styles.termsContainer}>
+                    <Text style={styles.termsText}>
+                        By continuing, you agree to our{' '}
+                        <Text style={styles.termsLink}>Terms of Service</Text>
+                        {' '}and{' '}
+                        <Text style={styles.termsLink}>Privacy Policy</Text>
+                    </Text>
                 </View>
-            </ScrollView>
+            </View>
         </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    scrollContent: {
-        flexGrow: 1,
-    },
     container: {
         flex: 1,
         backgroundColor: COLORS.surface,
-        paddingTop: 60,
         paddingHorizontal: 24,
     },
     backButton: {
@@ -299,7 +311,7 @@ const styles = StyleSheet.create({
     },
     form: {
         flex: 1,
-        gap: 0,
+        justifyContent: 'center',
     },
     label: {
         fontFamily: 'Satoshi-Medium',
@@ -421,8 +433,8 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
     },
     termsContainer: {
-        paddingTop: 32,
-        paddingBottom: 64,
+        paddingTop: 16,
+        paddingBottom: 16,
         alignItems: 'center',
     },
     termsText: {

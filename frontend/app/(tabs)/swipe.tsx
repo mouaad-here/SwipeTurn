@@ -47,7 +47,7 @@ function formatPostedAt(postedAt: string | null | undefined): string {
     }
 }
 
-const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCardTap }: any) => {
+const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCardTap, hasCv }: any) => {
     const stackOffsetTop = index * 12;
     const stackScale = 1 - (index * 0.04);
     const stackZIndex = 10 - index;
@@ -113,9 +113,6 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
             top: stackOffsetTop,
             zIndex: stackZIndex,
             opacity: stackOpacity,
-            backgroundColor: index === 0 ? COLORS.surface : COLORS.surface,
-            borderColor: COLORS.border,
-            borderWidth: 1,
         },
         isTopCard ? animatedCardStyle : { transform: defaultTransform }
     ];
@@ -159,19 +156,18 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                             </View>
                         )}
                     </View>
-                    <Text style={styles.jobTitle} numberOfLines={1}>{job.title}</Text>
+                    <Text style={styles.jobTitle} numberOfLines={2}>{job.title}</Text>
                     <Text style={styles.description} numberOfLines={3}>
                         {job.description != null ? String(job.description) : ''}
                     </Text>
                 </View>
 
-                <View style={styles.cardBottom}>
+                <View style={[styles.cardBottom, !hasCv && { display: 'none' }]}>
                     <View style={styles.matchRow}>
-                        <Text style={styles.matchLabel}>CV Match <Text style={styles.matchScore}>{Math.round(job.matchScore)}%</Text></Text>
-                        <Text style={styles.recommendedLabel}>RECOMMENDED FOR YOU</Text>
+                        <Text style={styles.matchLabel}>CV Match <Text style={styles.matchScore}>{Math.round(job.matchScore || 0)}%</Text></Text>
                     </View>
                     <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, { width: `${Math.round(job.matchScore)}%` }]} />
+                        <View style={[styles.progressFill, { width: `${Math.round(job.matchScore || 0)}%` }]} />
                     </View>
                 </View>
 
@@ -202,6 +198,7 @@ export default function SwipeScreen() {
     const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
     const snapPoints = React.useMemo(() => ['85%', '100%'], []);
     const [selectedJob, setSelectedJob] = useState<any>(null);
+    const [hasCv, setHasCv] = useState<boolean>(false);
     const feedLoadedRef = useRef(false);
     const loadingRef = useRef(false);
 
@@ -219,7 +216,14 @@ export default function SwipeScreen() {
                 if (raw) {
                     const parsed = JSON.parse(raw) as { jobs?: any[]; geographyMode?: string; timestamp?: number };
                     if (parsed?.jobs?.length && parsed.timestamp && Date.now() - parsed.timestamp < FEED_CACHE_TTL_MS) {
-                        setFeed(parsed.jobs);
+                        // Dedup by ID — old cache entries may pre-date the dedup logic
+                        const seenCache = new Set<string>();
+                        const dedupedJobs = (parsed.jobs as any[]).filter(j => {
+                            if (!j?.id || seenCache.has(j.id)) return false;
+                            seenCache.add(j.id);
+                            return true;
+                        });
+                        setFeed(dedupedJobs);
                         setGeographyMode(parsed.geographyMode || 'both');
                         setLoading(false);
                         loadFeed(true);
@@ -237,10 +241,12 @@ export default function SwipeScreen() {
             return (
                 <BottomSheetFooter {...props} bottomInset={0}>
                     <View style={[styles.sheetBottomBar, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-                        <View style={styles.sheetMatchCircle}>
-                            <Text style={styles.sheetMatchScore}>{Math.round(selectedJob.matchScore)}%</Text>
-                            <Text style={styles.sheetMatchLabel}>MATCH</Text>
-                        </View>
+                        {hasCv ? (
+                            <View style={styles.sheetMatchCircle}>
+                                <Text style={styles.sheetMatchScore}>{Math.round(selectedJob.matchScore || 0)}%</Text>
+                                <Text style={styles.sheetMatchLabel}>MATCH</Text>
+                            </View>
+                        ) : <View style={{ width: 10, marginRight: 'auto' }} />}
                         <Pressable
                             style={styles.sheetApplyBtn}
                             onPress={() => {
@@ -269,12 +275,22 @@ export default function SwipeScreen() {
         try {
             const headers = await getAuthHeaders();
             const { API_URL } = await import('@/constants/api');
+
+            // Check if user has uploaded CV (non-blocking)
+            fetch(`${API_URL}/users/me`, { headers }).then(async r => {
+                if (r.ok) {
+                    const profileData = await r.json();
+                    setHasCv(!!profileData.cv_storage_path);
+                }
+            }).catch(() => { });
+
             const response = await fetch(`${API_URL}/jobs/feed`, {
                 headers: { ...headers }
             });
 
-            if (response.status === 401) {
-                router.replace('/');
+            if (response.status === 401 || response.status === 403) {
+                // Do NOT redirect to welcome — let the auth guard in (tabs)/_layout.tsx handle this.
+                // If the session truly expired, Clerk will notify isSignedIn=false and the guard redirects.
                 setFeed([]);
                 loadingRef.current = false;
                 setLoading(false);
@@ -293,35 +309,44 @@ export default function SwipeScreen() {
 
             const rawJobs = Array.isArray(data.jobs) ? data.jobs : [];
             const geographyMode = data.geography_mode || 'both';
-            const mappedJobs = rawJobs.map((job: any) => {
-                const matched = Array.isArray(job.matched_skills) ? job.matched_skills : [];
-                const missing = Array.isArray(job.missing_skills) ? job.missing_skills : [];
-                const combinedSkills = [
-                    ...matched.map((s: string) => ({ name: String(s), matched: true })),
-                    ...missing.map((s: string) => ({ name: String(s), matched: false }))
-                ];
-                const descRaw = job.description_text || job.description || '';
-                const descriptionPreview = typeof descRaw === 'string' ? descRaw.slice(0, 3000) : '';
-                const company = displayCompany(job.company);
-                const locationDisplay = [job.city, job.country_code].filter(Boolean).join(', ') || (job.location != null ? String(job.location) : 'Unknown');
-                return {
-                    id: job.id,
-                    company,
-                    location: locationDisplay,
-                    city: job.city,
-                    remote: !!job.is_remote,
-                    title: job.title != null ? String(job.title) : 'Job',
-                    description: descriptionPreview,
-                    descriptionFull: job.description_text || job.description || '',
-                    logoUrl: job.logo_url || job.company_logo_url || null,
-                    skills: combinedSkills,
-                    matchScore: typeof job.match_score === 'number' ? job.match_score : 0,
-                    type: job.type || job.job_type || 'full-time',
-                    url: job.apply_url || job.job_url || '',
-                    visa_badge: job.visa_badge,
-                    posted_at: job.posted_at || job.posted_at_iso || null,
-                };
-            });
+
+            // Deduplicate by job ID to prevent React duplicate key warnings
+            const seenIds = new Set<string>();
+            const mappedJobs = rawJobs
+                .map((job: any) => {
+                    const matched = Array.isArray(job.matched_skills) ? job.matched_skills : [];
+                    const missing = Array.isArray(job.missing_skills) ? job.missing_skills : [];
+                    const combinedSkills = [
+                        ...matched.map((s: string) => ({ name: String(s), matched: true })),
+                        ...missing.map((s: string) => ({ name: String(s), matched: false }))
+                    ];
+                    const descRaw = job.description_text || job.description || '';
+                    const descriptionPreview = typeof descRaw === 'string' ? descRaw.slice(0, 3000) : '';
+                    const company = displayCompany(job.company);
+                    const locationDisplay = [job.city, job.country_code].filter(Boolean).join(', ') || (job.location != null ? String(job.location) : 'Unknown');
+                    return {
+                        id: job.id,
+                        company,
+                        location: locationDisplay,
+                        city: job.city,
+                        remote: !!job.is_remote,
+                        title: job.title != null ? String(job.title) : 'Job',
+                        description: descriptionPreview,
+                        descriptionFull: job.description_text || job.description || '',
+                        logoUrl: job.logo_url || job.company_logo_url || null,
+                        skills: combinedSkills,
+                        matchScore: typeof job.match_score === 'number' ? job.match_score : 0,
+                        type: job.type || job.job_type || 'full-time',
+                        url: job.apply_url || job.job_url || '',
+                        visa_badge: job.visa_badge,
+                        posted_at: job.posted_at || job.posted_at_iso || null,
+                    };
+                })
+                .filter((job: any) => {
+                    if (!job.id || seenIds.has(job.id)) return false;
+                    seenIds.add(job.id);
+                    return true;
+                });
 
             setFeed(mappedJobs);
             setGeographyMode(geographyMode);
@@ -421,7 +446,7 @@ export default function SwipeScreen() {
                         {feed.slice(0, 3).reverse().map((job, reverseIndex, arr) => {
                             // Calculate actual index based on the reversed array to pass to renderCard
                             const actualIndex = arr.length - 1 - reverseIndex;
-                            return <SwipeCard key={job.id} job={job} index={actualIndex} isTopCard={actualIndex === 0} swipeDirection={swipeDirection} handleSwipeEnd={handleSwipeEnd} onCardTap={openJobDetails} />;
+                            return <SwipeCard key={job.id} job={job} index={actualIndex} isTopCard={actualIndex === 0} swipeDirection={swipeDirection} handleSwipeEnd={handleSwipeEnd} onCardTap={openJobDetails} hasCv={hasCv} />;
                         })}
                     </View>
                 )}
@@ -514,14 +539,6 @@ export default function SwipeScreen() {
                                 </Pressable>
                             </View>
 
-                            <View style={styles.sheetTabRow}>
-                                <View style={styles.sheetTabActive}>
-                                    <Text style={styles.sheetTabTextActive}>About The Job</Text>
-                                </View>
-                                <View style={styles.sheetTabInactive}>
-                                    <Text style={styles.sheetTabTextInactive}>Company Details</Text>
-                                </View>
-                            </View>
                         </View>
 
                         <View style={styles.sheetSkillsSection}>
@@ -544,9 +561,7 @@ export default function SwipeScreen() {
 
                         <View style={styles.sheetDescSection}>
                             <Text style={styles.sheetSectionTitle}>Job Description</Text>
-                            <View style={styles.sheetDescBox}>
-                                <Text style={styles.sheetDescText}>{(selectedJob.descriptionFull ?? selectedJob.description) != null ? String(selectedJob.descriptionFull ?? selectedJob.description) : 'No description available.'}</Text>
-                            </View>
+                            <Text style={styles.sheetDescText}>{(selectedJob.descriptionFull ?? selectedJob.description) != null ? String(selectedJob.descriptionFull ?? selectedJob.description) : 'No description available.'}</Text>
                         </View>
                         {/* Empty spacer to ensure scrollable height passes bottom threshold */}
                         <View style={{ height: 100 }} />
@@ -583,12 +598,9 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         borderRadius: 24,
-        borderWidth: 1,
-        borderBottomWidth: 4,
-        borderColor: COLORS.border,
         backgroundColor: COLORS.surface,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 10 },
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.08,
         shadowRadius: 24,
         elevation: 8,
@@ -614,7 +626,7 @@ const styles = StyleSheet.create({
     postedBadge: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accent },
     badgeRemote: { backgroundColor: COLORS_ALPHA.successLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
     badgeRemoteText: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accentSuccess, letterSpacing: 0.5 },
-    jobTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 22, color: COLORS.textPrimary, lineHeight: 28, marginBottom: 16, letterSpacing: -0.5 },
+    jobTitle: { fontFamily: 'Satoshi-Black', fontSize: 22, color: COLORS.textPrimary, lineHeight: 30, marginBottom: 16, letterSpacing: -0.5 },
     skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
     skillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
     skillChipMatched: { backgroundColor: COLORS_ALPHA.successLight, borderColor: COLORS.accentSuccess },
@@ -624,7 +636,7 @@ const styles = StyleSheet.create({
     greyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
     skillChipTextUnmatched: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
     description: { fontFamily: 'Satoshi-Regular', fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
-    cardBottom: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface },
+    cardBottom: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
     matchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     matchLabel: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.textMuted },
     matchScore: { fontFamily: 'Satoshi-Bold', fontSize: 14, color: COLORS.accentSuccess },
@@ -679,10 +691,9 @@ const styles = StyleSheet.create({
     sheetSkillContentUnmatched: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sheetGreyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
     sheetSkillTextUnmatched: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
-    sheetDescSection: { paddingHorizontal: 20 },
+    sheetDescSection: { paddingHorizontal: 20, paddingBottom: 8 },
     sheetSectionTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.textPrimary, marginBottom: 16 },
-    sheetDescBox: { backgroundColor: COLORS.surface, padding: 16, borderRadius: 12 },
-    sheetDescText: { fontFamily: 'Satoshi-Regular', fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
+    sheetDescText: { fontFamily: 'Satoshi-Regular', fontSize: 16, color: COLORS.textSecondary, lineHeight: 26 },
     sheetBottomBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
     sheetMatchCircle: { alignItems: 'center', marginRight: 20 },
     sheetMatchScore: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.accentSuccess },

@@ -35,41 +35,52 @@ class OnboardingComplete(BaseModel):
 @router.get("/me")
 async def get_me(user: dict = Depends(get_current_user)):
     """Fetches the current user profile, computing the completion score and signed CV URL."""
-    
-    # Generate 1-hour signed URL if user has uploaded a CV
-    cv_url = None
-    if user.get("cv_storage_path"):
-        try:
-            res = get_supabase().storage.from_("cvs").create_signed_url(user["cv_storage_path"], 3600)
-            cv_url = res.get("signedURL")
-        except Exception:
-            pass # Fails gracefully if bucket setup is incomplete
+    try:
+        # Generate 1-hour signed URL if user has uploaded a CV
+        cv_url = None
+        if user.get("cv_storage_path"):
+            try:
+                res = get_supabase().storage.from_("cvs").create_signed_url(user["cv_storage_path"], 3600)
+                cv_url = res.get("signedURL")
+            except Exception:
+                pass # Fails gracefully if bucket setup is incomplete
+                
+        user["cv_url"] = cv_url
+        
+        # Compute dynamic profile score
+        score = 0
+        has_cv = bool(user.get("cv_storage_path"))
+        if has_cv:
+            score += 40
+        
+        extracted_skills = user.get("extracted_skills") or []
+        if len(extracted_skills) >= 3:
+            score += 25
             
-    user["cv_url"] = cv_url
-    
-    # Compute dynamic profile score (CV is major; without CV, max ~50)
-    score = 0
-    has_cv = bool(user.get("cv_storage_path"))
-    if has_cv:
-        score += 40
-    if len(user.get("extracted_skills", [])) >= 3:
-        score += 25
-    if user.get("linkedin_url"):
-        score += 10
-    if user.get("preferences") and (user.get("preferences") or {}).get("geography"):
-        score += 10
-    if len(user.get("target_locations", [])) > 0:
-        score += 5
-    if len(user.get("languages", [])) > 0:
-        score += 5
-    
-    # Without CV, cap at 50 so it's clear more completion is needed
-    if not has_cv:
-        score = min(50, score)
-    
-    user["profile_score"] = min(100, score)
-    
-    return user
+        if user.get("linkedin_url"):
+            score += 10
+            
+        if user.get("preferences") and (user.get("preferences") or {}).get("geography"):
+            score += 10
+            
+        target_locations = user.get("target_locations") or []
+        if len(target_locations) > 0:
+            score += 5
+            
+        languages = user.get("languages") or []
+        if len(languages) > 0:
+            score += 5
+        
+        # Without CV, cap at 50 so it's clear more completion is needed
+        if not has_cv:
+            score = min(50, score)
+        
+        user["profile_score"] = min(100, score)
+        
+        return user
+    except Exception as e:
+        print(f"[get_me] INTERNAL ERROR: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal User Error: {str(e)}")
 
 @router.patch("/preferences")
 async def update_preferences(prefs: PreferencesUpdate, user: dict = Depends(get_current_user)):

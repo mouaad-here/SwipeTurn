@@ -1,10 +1,12 @@
 import { COLORS } from '@/constants/colors';
 import { useAuth, useOAuth, useSignIn } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -18,18 +20,39 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Critical for Android: warm up the browser so OAuth completes properly
+// and Clerk can process the callback when the app restarts.
+function useWarmUpBrowser() {
+    useEffect(() => {
+        if (Platform.OS !== 'web') {
+            void WebBrowser.warmUpAsync();
+            return () => { void WebBrowser.coolDownAsync(); };
+        }
+    }, []);
+}
+
 export default function LoginScreen() {
+    useWarmUpBrowser();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { signIn, setActive, isLoaded } = useSignIn();
     const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
     const { isSignedIn } = useAuth();
 
+    // One-time guard: if user is ALREADY signed in when this screen mounts, route away.
+    // Must NOT watch isSignedIn changes — that re-fires during OAuth and races the handler.
     useEffect(() => {
-        if (isLoaded && isSignedIn) {
-            router.replace('/(onboarding)/geography');
-        }
-    }, [isLoaded, isSignedIn]);
+        if (!isLoaded) return;
+        if (!isSignedIn) return;
+        (async () => {
+            try {
+                const cached = await AsyncStorage.getItem('swipturn:onboarding_done');
+                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/');
+            } catch {
+                router.replace('/');
+            }
+        })();
+    }, [isLoaded]); // intentionally omit isSignedIn — see comment above
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -56,6 +79,7 @@ export default function LoginScreen() {
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId });
+                try { await AsyncStorage.setItem('swipturn:onboarding_done', 'true'); } catch (_) { }
                 router.replace('/(tabs)/swipe');
             } else {
                 const statusMessages: Record<string, string> = {
@@ -75,29 +99,36 @@ export default function LoginScreen() {
         }
     };
 
-    const handleGoogleLogin = async () => {
+    const handleGoogleLogin = useCallback(async () => {
         try {
-            const { createdSessionId, setActive } = await startOAuthFlow({
-                redirectUrl: Linking.createURL('/(tabs)/swipe', { scheme: 'swipeturn' })
+            // Use root URL so index.tsx handles routing after Clerk processes the callback.
+            // On Android, the app restarts after OAuth — the old `/(tabs)/swipe` URL
+            // bypassed Clerk's callback processing.
+            const { createdSessionId, setActive: setOAuthActive } = await startOAuthFlow({
+                redirectUrl: Linking.createURL('/', { scheme: 'swipeturn' })
             });
 
-            if (createdSessionId && setActive) {
-                await setActive({ session: createdSessionId });
+            // This block only runs if the app stayed alive (iOS usually).
+            // On Android (app killed + restarted), the Promise is lost and
+            // Clerk auto-hydrates the session — index.tsx handles the redirect.
+            if (createdSessionId && setOAuthActive) {
+                await setOAuthActive({ session: createdSessionId });
+                try { await AsyncStorage.setItem('swipturn:onboarding_done', 'true'); } catch (_) { }
                 router.replace('/(tabs)/swipe');
             }
         } catch (err) {
             console.error("OAuth error", err);
             setError('Google Login failed. Please try again.');
         }
-    };
+    }, [startOAuthFlow, router]);
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]} bounces={false}>
-                <View style={styles.container}>
+            <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} showsVerticalScrollIndicator={false}>
+                <View style={[styles.container, { paddingTop: Math.max(insets.top + 20, 60), paddingBottom: Math.max(insets.bottom, 20) }]}>
                     <StatusBar style="dark" />
 
                     <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -189,7 +220,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.surface,
-        paddingTop: 60,
         paddingHorizontal: 24,
     },
     backButton: {

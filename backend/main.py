@@ -1,4 +1,12 @@
+import os
+import sys
+import asyncio
 import threading
+
+if sys.platform == 'win32':
+    # This prevents WinError 10035 when using sync http clients in async threadpools
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request

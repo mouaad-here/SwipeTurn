@@ -54,7 +54,8 @@ def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
     swipe_data = {
         "user_id": user_id,
         "job_id": action.job_id,
-        "direction": action.direction
+        "direction": action.direction,
+        "status": "saved" if action.direction == "right" else "passed"
     }
     
     try:
@@ -70,8 +71,16 @@ def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
             "swipes_remaining": FREE_SWIPE_LIMIT - (swipes_today + 1)
         }
     except Exception as e:
-        # Usually means unique constraint violation (they already swiped it)
-        raise HTTPException(status_code=400, detail="Failed to register swipe or already swiped")
+        # Check if it's a unique constraint violation
+        error_str = str(e).lower()
+        if "unique" in error_str or "already exists" in error_str:
+             return {
+                "success": True, 
+                "message": "Already swiped", 
+                "swipes_remaining": FREE_SWIPE_LIMIT - swipes_today
+            }
+        print(f"[swipes] INTERNAL ERROR: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to register swipe: {str(e)}")
 
 @router.get("/saved")
 def get_saved_jobs(user: dict = Depends(get_current_user)):
