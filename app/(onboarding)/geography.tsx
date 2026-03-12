@@ -1,3 +1,6 @@
+import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator';
+import { COLORS } from '@/constants/colors';
+import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,9 +13,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator';
-import { COLORS } from '@/constants/colors';
-import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 
 const GEOGRAPHY_OPTIONS = [
   { value: 'morocco', label: 'Morocco only' },
@@ -69,9 +69,8 @@ export default function GeographyScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.replace('/')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </Pressable>
         <OnboardingStepIndicator step={1} total={6} />

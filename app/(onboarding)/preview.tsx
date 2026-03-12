@@ -1,3 +1,8 @@
+import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator';
+import { API_URL } from '@/constants/api';
+import { COLORS } from '@/constants/colors';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { clearDraft, getDraft, type OnboardingState } from '@/lib/onboarding-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -9,15 +14,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  View,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator';
-import { API_URL } from '@/constants/api';
-import { COLORS } from '@/constants/colors';
-import { useAuthHeaders } from '@/hooks/useAuthHeaders';
-import { clearDraft, getDraft, type OnboardingState } from '@/lib/onboarding-storage';
 
 const GEOGRAPHY_LABELS: Record<string, string> = {
   morocco: 'Morocco only',
@@ -71,7 +70,6 @@ export default function PreviewScreen() {
   const insets = useSafeAreaInsets();
   const { getAuthHeaders } = useAuthHeaders();
   const [draft, setDraft] = useState<Partial<OnboardingState>>({});
-  const [displayName, setDisplayName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cvUploading, setCvUploading] = useState(false);
@@ -83,7 +81,6 @@ export default function PreviewScreen() {
   const loadDraft = useCallback(async () => {
     const d = await getDraft();
     setDraft(d);
-    if (d.name) setDisplayName(d.name);
   }, []);
 
   useEffect(() => {
@@ -102,7 +99,6 @@ export default function PreviewScreen() {
       domains: draft.domains ?? [],
       subcategories: draft.subcategories ?? [],
       keywords: draft.keywords ?? [],
-      name: displayName.trim() || undefined,
     };
 
     try {
@@ -294,16 +290,7 @@ export default function PreviewScreen() {
           {cvError ? <Text style={styles.cvErrorText}>{cvError}</Text> : null}
         </View>
 
-        <View style={styles.displayNameSection}>
-          <Text style={styles.displayNameLabel}>Display name (optional)</Text>
-          <TextInput
-            style={styles.displayNameInput}
-            placeholder="How should we call you?"
-            placeholderTextColor={COLORS.textMeta}
-            value={displayName}
-            onChangeText={setDisplayName}
-          />
-        </View>
+
 
         {error ? (
           <Text style={styles.errorText}>{error}</Text>

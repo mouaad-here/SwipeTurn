@@ -1,3 +1,6 @@
+import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator';
+import { COLORS } from '@/constants/colors';
+import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,9 +13,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator';
-import { COLORS } from '@/constants/colors';
-import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 
 const CATEGORIES: { id: string; label: string; subcategories: string[] }[] = [
   { id: 'engineering', label: 'Engineering', subcategories: ['Frontend', 'Backend', 'Mobile', 'Fullstack', 'Embedded'] },
@@ -78,9 +78,10 @@ export default function DomainsScreen() {
     router.push('/(onboarding)/skills');
   };
 
-  const expandedCategories = CATEGORIES.filter((c) =>
-    selectedCategories.includes(c.id)
-  );
+  // Show subcategories for all selected categories. If none selected, default show all available subcategories to reveal the feature.
+  const expandedCategories = selectedCategories.length > 0
+    ? CATEGORIES.filter((c) => selectedCategories.includes(c.id))
+    : CATEGORIES;
 
   return (
     <View style={styles.container}>
