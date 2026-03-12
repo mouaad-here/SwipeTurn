@@ -1,9 +1,9 @@
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 
 export default function WelcomeScreen() {
     const router = useRouter();
@@ -87,21 +87,21 @@ const styles = StyleSheet.create({
     },
     circleLarge: {
         position: 'absolute',
-        width: 260,
-        height: 260,
-        borderRadius: 130,
-        backgroundColor: COLORS_ALPHA.accentLight,
-        top: -40,
-        right: -60,
+        width: 300,
+        height: 300,
+        borderRadius: 150,
+        backgroundColor: COLORS_ALPHA.accentMedium,
+        top: -60,
+        right: -80,
     },
     circleSmall: {
         position: 'absolute',
-        width: 140,
-        height: 140,
-        borderRadius: 70,
-        backgroundColor: COLORS_ALPHA.accentLight,
-        top: 60,
-        left: -30,
+        width: 180,
+        height: 180,
+        borderRadius: 90,
+        backgroundColor: COLORS_ALPHA.accentMedium,
+        top: 80,
+        left: -40,
     },
     logoRow: {
         flexDirection: 'row',
@@ -109,19 +109,21 @@ const styles = StyleSheet.create({
     },
     logoPrefix: {
         fontFamily: 'ClashDisplay-Bold',
-        fontSize: 42,
+        fontSize: 48,
+        letterSpacing: -1,
         color: COLORS.textPrimary,
     },
     logoSuffix: {
         fontFamily: 'ClashDisplay-Bold',
-        fontSize: 42,
+        fontSize: 48,
+        letterSpacing: -1,
         color: COLORS.accent,
     },
     tagline: {
-        fontFamily: 'Satoshi-Regular',
-        fontSize: 16,
-        color: COLORS.textMuted,
-        marginTop: 12,
+        fontFamily: 'Satoshi-Medium',
+        fontSize: 18,
+        color: COLORS.textSecondary,
+        marginTop: 16,
         textAlign: 'center',
     },
     bottomArea: {
@@ -133,26 +135,41 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.accent,
         borderRadius: 50,
         paddingVertical: 18,
-        minHeight: 48,
+        minHeight: 56,
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
     getStartedText: {
-        fontFamily: 'Satoshi-Medium',
-        fontSize: 17,
+        fontFamily: 'Satoshi-Bold',
+        fontSize: 18,
+        letterSpacing: 0.5,
         color: 'white',
     },
     continueWithoutButton: {
         paddingVertical: 14,
-        minHeight: 48,
+        minHeight: 56,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 4,
+        backgroundColor: COLORS.surface,
+        borderRadius: 50,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     continueWithoutText: {
         fontFamily: 'Satoshi-Medium',
-        fontSize: 14,
-        color: COLORS.textMuted,
+        fontSize: 16,
+        color: COLORS.textSecondary,
     },
     loginRow: {
         flexDirection: 'row',

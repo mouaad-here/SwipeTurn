@@ -1,17 +1,17 @@
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetFooter, BottomSheetFooterProps, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { Extrapolation, FadeIn, interpolate, runOnJS, SlideOutLeft, SlideOutRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/appStore';
-import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 
 const FEED_CACHE_KEY = 'swipeturn_feed_cache';
 const FEED_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -240,7 +240,7 @@ export default function SwipeScreen() {
                         return;
                     }
                 }
-            } catch (_) {}
+            } catch (_) { }
             await loadFeed(false);
         })();
     }, []);
@@ -345,7 +345,7 @@ export default function SwipeScreen() {
                     geographyMode,
                     timestamp: Date.now(),
                 }));
-            } catch (_) {}
+            } catch (_) { }
         } catch (error) {
             const { API_URL } = await import('@/constants/api');
             console.error("Feed error:", error, "| API_URL:", `${API_URL}/jobs/feed`);
@@ -560,25 +560,58 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 10 },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    orangeCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
+    orangeCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: COLORS.accent,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
     headerTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary },
     bellButton: { minWidth: 48, minHeight: 48, padding: 8, justifyContent: 'center', alignItems: 'center' },
     stackContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 110 },
     cardsWrapper: { width: SCREEN_WIDTH * 0.9, height: SCREEN_HEIGHT * 0.65, marginBottom: 10 },
-    card: { position: 'absolute', width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: COLORS.background },
-    cardTop: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 16, flex: 1 },
-    companyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    companyLogo: { width: 48, height: 48, borderRadius: 12, backgroundColor: COLORS.surface2, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    companyInitial: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary },
+    card: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
+        backgroundColor: COLORS.surface,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 8,
+    },
+    cardTop: { paddingHorizontal: 24, paddingBottom: 20, paddingTop: 20, flex: 1 },
+    companyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    companyLogo: {
+        width: 52,
+        height: 52,
+        borderRadius: 14,
+        backgroundColor: COLORS.surface2,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+        borderWidth: 1,
+        borderColor: COLORS.border
+    },
+    companyInitial: { fontFamily: 'ClashDisplay-Bold', fontSize: 26, color: COLORS.textPrimary },
     companyInfo: { flex: 1 },
-    companyName: { fontFamily: 'Satoshi-Medium', fontSize: 16, color: COLORS.textPrimary },
-    companyMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-    companyLocation: { fontFamily: 'Satoshi-Regular', fontSize: 14, color: COLORS.textMuted },
-    postedBadge: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accent },
-    badgeRemote: { backgroundColor: COLORS_ALPHA.successLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    badgeRemoteText: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accentSuccess },
-    jobTitle: { fontFamily: 'ClashDisplay-Semibold', fontSize: 17, color: COLORS.textPrimary, lineHeight: 24, marginBottom: 12 },
-    skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    companyName: { fontFamily: 'Satoshi-Bold', fontSize: 16, color: COLORS.textPrimary, letterSpacing: -0.2 },
+    companyMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+    companyLocation: { fontFamily: 'Satoshi-Medium', fontSize: 14, color: COLORS.textMuted },
+    postedBadge: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accent },
+    badgeRemote: { backgroundColor: COLORS_ALPHA.successLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+    badgeRemoteText: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accentSuccess, letterSpacing: 0.5 },
+    jobTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 22, color: COLORS.textPrimary, lineHeight: 28, marginBottom: 16, letterSpacing: -0.5 },
+    skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
     skillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
     skillChipMatched: { backgroundColor: COLORS_ALPHA.successLight, borderColor: COLORS.accentSuccess },
     skillChipUnmatched: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
@@ -641,6 +674,18 @@ const styles = StyleSheet.create({
     sheetMatchCircle: { alignItems: 'center', marginRight: 20 },
     sheetMatchScore: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.accentSuccess },
     sheetMatchLabel: { fontFamily: 'ClashDisplay-Bold', fontSize: 10, color: COLORS.textMuted, letterSpacing: 1 },
-    sheetApplyBtn: { width: '60%', marginLeft: 'auto', backgroundColor: COLORS.accent, paddingVertical: 16, borderRadius: 28, alignItems: 'center' },
-    sheetApplyBtnText: { fontFamily: 'Satoshi-Medium', fontSize: 16, color: '#FFFFFF' }
+    sheetApplyBtn: {
+        width: '60%',
+        marginLeft: 'auto',
+        backgroundColor: COLORS.accent,
+        paddingVertical: 18,
+        borderRadius: 32,
+        alignItems: 'center',
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    sheetApplyBtnText: { fontFamily: 'Satoshi-Bold', fontSize: 17, color: '#FFFFFF', letterSpacing: 0.5 }
 });

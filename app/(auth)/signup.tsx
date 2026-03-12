@@ -1,3 +1,4 @@
+import { COLORS } from '@/constants/colors';
 import { useAuth, useOAuth, useSignUp } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
@@ -16,7 +17,6 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants/colors';
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -33,6 +33,8 @@ export default function SignupScreen() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -42,8 +44,8 @@ export default function SignupScreen() {
     const handleRegister = async () => {
         if (!isLoaded) return;
 
-        if (!email || !password) {
-            setError('Please enter both email and password');
+        if (!email || !password || !firstName || !lastName) {
+            setError('Please fill in all fields');
             return;
         }
 
@@ -54,6 +56,8 @@ export default function SignupScreen() {
             await signUp.create({
                 emailAddress: email,
                 password,
+                firstName,
+                lastName,
             });
 
             if (signUp.status === 'complete' && signUp.createdSessionId) {
@@ -166,69 +170,92 @@ export default function SignupScreen() {
                             </Pressable>
                         </View>
                     ) : (
-                    <View style={styles.form}>
-                        <Text style={styles.label}>Email</Text>
-                        <View style={styles.inputContainer}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter your email"
-                                placeholderTextColor="#9CA3AF"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                            />
-                        </View>
+                        <View style={styles.form}>
+                            <View style={styles.nameRow}>
+                                <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="First Name"
+                                        placeholderTextColor="#9CA3AF"
+                                        value={firstName}
+                                        onChangeText={setFirstName}
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                                <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Last Name"
+                                        placeholderTextColor="#9CA3AF"
+                                        value={lastName}
+                                        onChangeText={setLastName}
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
 
-                        <Text style={[styles.label, { marginTop: 20 }]}>Password</Text>
-                        <View style={styles.inputContainer}>
-                            <TextInput
-                                style={[styles.input, { flex: 1 }]}
-                                placeholder="Enter your password"
-                                placeholderTextColor="#9CA3AF"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry={!showPass}
-                                autoCapitalize="none"
-                            />
-                            <Pressable
-                                onPress={() => setShowPass(!showPass)}
-                                style={styles.eyeIcon}
-                            >
-                                <Ionicons
-                                    name={showPass ? "eye-off-outline" : "eye-outline"}
-                                    size={20}
-                                    color={COLORS.textMeta}
+                            <Text style={[styles.label, { marginTop: 20 }]}>Email</Text>
+                            <View style={styles.inputContainer}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your email"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
                                 />
+                            </View>
+
+                            <Text style={[styles.label, { marginTop: 20 }]}>Password</Text>
+                            <View style={styles.inputContainer}>
+                                <TextInput
+                                    style={[styles.input, { flex: 1 }]}
+                                    placeholder="Enter your password"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry={!showPass}
+                                    autoCapitalize="none"
+                                />
+                                <Pressable
+                                    onPress={() => setShowPass(!showPass)}
+                                    style={styles.eyeIcon}
+                                >
+                                    <Ionicons
+                                        name={showPass ? "eye-off-outline" : "eye-outline"}
+                                        size={20}
+                                        color={COLORS.textMeta}
+                                    />
+                                </Pressable>
+                            </View>
+
+                            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                            <Pressable
+                                style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+                                onPress={handleRegister}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="white" />
+                                ) : (
+                                    <Text style={styles.continueButtonText}>Continue</Text>
+                                )}
+                            </Pressable>
+
+                            <View style={styles.dividerRow}>
+                                <View style={styles.dividerLine} />
+                                <Text style={styles.dividerText}>OR</Text>
+                                <View style={styles.dividerLine} />
+                            </View>
+
+                            <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
+                                <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
+                                <Text style={styles.googleButtonText}>Continue with Google</Text>
                             </Pressable>
                         </View>
-
-                        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-                        <Pressable
-                            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
-                            onPress={handleRegister}
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="white" />
-                            ) : (
-                                <Text style={styles.continueButtonText}>Continue</Text>
-                            )}
-                        </Pressable>
-
-                        <View style={styles.dividerRow}>
-                            <View style={styles.dividerLine} />
-                            <Text style={styles.dividerText}>OR</Text>
-                            <View style={styles.dividerLine} />
-                        </View>
-
-                        <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
-                            <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
-                            <Text style={styles.googleButtonText}>Continue with Google</Text>
-                        </Pressable>
-                    </View>
                     )}
 
                     <View style={styles.termsContainer}>
@@ -263,10 +290,11 @@ const styles = StyleSheet.create({
     },
     heading: {
         fontFamily: 'ClashDisplay-Bold',
-        fontSize: 30,
+        fontSize: 32,
         color: COLORS.textPrimary,
         marginTop: 28,
         marginBottom: 36,
+        letterSpacing: -0.5,
     },
     form: {
         flex: 1,
@@ -274,27 +302,37 @@ const styles = StyleSheet.create({
     },
     label: {
         fontFamily: 'Satoshi-Medium',
-        fontSize: 13,
-        color: COLORS.textMuted,
-        marginBottom: 8,
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginBottom: 10,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface2,
+        backgroundColor: COLORS.surface,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'transparent',
+        borderColor: COLORS.border,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
     },
     input: {
         flex: 1,
-        padding: 18,
+        padding: 16,
         color: COLORS.textPrimary,
         fontSize: 15,
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi-Medium',
     },
     eyeIcon: {
-        padding: 18,
+        padding: 16,
+    },
+    nameRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 4,
     },
     errorText: {
         fontFamily: 'Satoshi-Regular',
@@ -322,17 +360,23 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.accent,
         borderRadius: 50,
         paddingVertical: 18,
+        minHeight: 56,
         marginTop: 28,
-        minHeight: 48,
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
     continueButtonDisabled: {
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'Satoshi-Medium',
-        fontSize: 17,
+        fontFamily: 'Satoshi-Bold',
+        fontSize: 18,
+        letterSpacing: 0.5,
         color: 'white',
     },
     dividerRow: {
@@ -355,19 +399,24 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'white',
+        backgroundColor: COLORS.surface,
         borderWidth: 1,
         borderColor: COLORS.border,
         borderRadius: 50,
         paddingVertical: 16,
-        minHeight: 48,
+        minHeight: 56,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     googleIcon: {
-        marginRight: 10,
+        marginRight: 12,
     },
     googleButtonText: {
         fontFamily: 'Satoshi-Medium',
-        fontSize: 15,
+        fontSize: 16,
         color: COLORS.textPrimary,
     },
     termsContainer: {

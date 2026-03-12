@@ -1,3 +1,4 @@
+import { COLORS } from '@/constants/colors';
 import { useAuth, useOAuth, useSignIn } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
@@ -16,7 +17,6 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants/colors';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -96,7 +96,7 @@ export default function LoginScreen() {
             style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-                <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]} bounces={false}>
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }]} bounces={false}>
                 <View style={styles.container}>
                     <StatusBar style="dark" />
 
@@ -200,10 +200,11 @@ const styles = StyleSheet.create({
     },
     heading: {
         fontFamily: 'ClashDisplay-Bold',
-        fontSize: 30,
-        color: 'COLORS.textPrimary',
+        fontSize: 32,
+        color: COLORS.textPrimary,
         marginTop: 28,
         marginBottom: 36,
+        letterSpacing: -0.5,
     },
     form: {
         flex: 1,
@@ -211,24 +212,29 @@ const styles = StyleSheet.create({
     },
     label: {
         fontFamily: 'Satoshi-Medium',
-        fontSize: 13,
-        color: 'COLORS.textMuted',
-        marginBottom: 8,
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginBottom: 10,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'COLORS.surface2',
+        backgroundColor: COLORS.surface,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'transparent',
+        borderColor: COLORS.border,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
     },
     input: {
         flex: 1,
         padding: 18,
-        color: 'COLORS.textPrimary',
+        color: COLORS.textPrimary,
         fontSize: 15,
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi-Medium',
     },
     eyeIcon: {
         minWidth: 48,
@@ -244,20 +250,26 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     continueButton: {
-        backgroundColor: 'COLORS.accent',
+        backgroundColor: COLORS.accent,
         borderRadius: 50,
         paddingVertical: 18,
-        minHeight: 48,
+        minHeight: 56,
         marginTop: 28,
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
     continueButtonDisabled: {
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'Satoshi-Medium',
-        fontSize: 17,
+        fontFamily: 'Satoshi-Bold',
+        fontSize: 18,
+        letterSpacing: 0.5,
         color: 'white',
     },
     dividerRow: {
@@ -280,20 +292,25 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'white',
+        backgroundColor: COLORS.surface,
         borderWidth: 1,
-        borderColor: 'COLORS.border',
+        borderColor: COLORS.border,
         borderRadius: 50,
         paddingVertical: 16,
-        minHeight: 48,
+        minHeight: 56,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     googleIcon: {
-        marginRight: 10,
+        marginRight: 12,
     },
     googleButtonText: {
         fontFamily: 'Satoshi-Medium',
-        fontSize: 15,
-        color: 'COLORS.textPrimary',
+        fontSize: 16,
+        color: COLORS.textPrimary,
     },
     signupRow: {
         flexDirection: 'row',
