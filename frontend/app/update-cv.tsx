@@ -10,9 +10,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const FEED_CACHE_KEY = 'swipturn_feed_cache';
 
 export default function UpdateCvScreen() {
     const router = useRouter();
@@ -65,6 +68,10 @@ export default function UpdateCvScreen() {
             if (Array.isArray(data.extracted_skills)) {
                 setSkills(data.extracted_skills.slice(0, 8));
             }
+            // Invalidate swipe feed cache so recommendations reload with new CV signal
+            try {
+                await AsyncStorage.removeItem(FEED_CACHE_KEY);
+            } catch {}
             setUploaded(true);
         } catch (err: any) {
             setError(err?.message || 'Something went wrong. Please try again.');

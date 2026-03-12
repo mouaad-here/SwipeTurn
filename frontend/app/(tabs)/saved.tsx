@@ -1,10 +1,11 @@
 import { COLORS } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { useAppStore } from '../../store/appStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -76,6 +77,7 @@ export default function SavedScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { getAuthHeaders } = useAuthHeaders();
+    const savedJobsFromStore = useAppStore(state => state.savedJobs);
 
     const [jobMap, setJobMap] = useState<Map<string, SavedJob>>(new Map());
     const [jobOrder, setJobOrder] = useState<string[]>([]);
@@ -129,9 +131,34 @@ export default function SavedScreen() {
                 is_active: j.is_active,
                 posted_at: j.posted_at,
             }));
-            const newMap = new Map(jobs.map(j => [j.id, j]));
+
+            // Start from backend truth
+            const newMap = new Map<string, SavedJob>(jobs.map(j => [j.id, j]));
+            const orderSet = new Set<string>(jobs.map(j => j.id));
+
+            // Merge in any optimistic locally-saved jobs that might not have
+            // reached the backend yet, so they don't disappear after refresh.
+            savedJobsFromStore.forEach((j) => {
+                if (newMap.has(j.id)) return;
+                const optimisticJob: SavedJob = {
+                    id: j.id,
+                    title: j.title || 'Unknown',
+                    company: displayCompany(j.company),
+                    location: (j.location || '').toUpperCase(),
+                    timeAgo: 'Just now',
+                    apply_url: j.url || '',
+                    apply_email: '',
+                    status: 'saved',
+                    freshness: 'fresh',
+                    is_active: true,
+                    posted_at: undefined,
+                };
+                newMap.set(j.id, optimisticJob);
+                orderSet.add(j.id);
+            });
+
             setJobMap(newMap);
-            setJobOrder(jobs.map(j => j.id));
+            setJobOrder(Array.from(orderSet));
             lastFetchedAtRef.current = Date.now();
         } catch {
             setJobMap(new Map());
@@ -140,7 +167,46 @@ export default function SavedScreen() {
             loadingRef.current = false;
             setLoading(false);
         }
-    }, [getAuthHeaders]);
+    }, [getAuthHeaders, savedJobsFromStore]);
+
+    // Merge optimistic locally-saved jobs (from swipe-right) into the list immediately,
+    // so the user doesn't have to wait for the next backend refresh.
+    useEffect(() => {
+        if (!savedJobsFromStore || savedJobsFromStore.length === 0) return;
+        setJobMap(prevMap => {
+            const nextMap = new Map(prevMap);
+            let orderChanged = false;
+            const nextOrder = new Set(jobOrder);
+
+            savedJobsFromStore.forEach((j) => {
+                if (nextMap.has(j.id)) {
+                    return;
+                }
+                const optimisticJob: SavedJob = {
+                    id: j.id,
+                    title: j.title || 'Unknown',
+                    company: displayCompany(j.company),
+                    location: (j.location || '').toUpperCase(),
+                    timeAgo: 'Just now',
+                    apply_url: j.url || '',
+                    apply_email: '',
+                    status: 'saved',
+                    freshness: 'fresh',
+                    is_active: true,
+                    posted_at: undefined,
+                };
+                nextMap.set(j.id, optimisticJob);
+                nextOrder.add(j.id);
+                orderChanged = true;
+            });
+
+            if (orderChanged) {
+                setJobOrder(Array.from(nextOrder));
+            }
+            return nextMap;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [savedJobsFromStore]);
 
     useFocusEffect(
         useCallback(() => { loadSaved(); }, [loadSaved])

@@ -199,6 +199,9 @@ async def upload_cv(
         except Exception as e:
             print(f"Failed to generate CV embedding: {e}")
 
+        # Build update payload.
+        # CV is used **only for matching**, not for overwriting identity fields
+        # like name, email, or LinkedIn – those stay controlled by auth/onboarding.
         update_data = {
             "cv_storage_path": storage_path,
             "cv_text": cv_text,
@@ -208,9 +211,6 @@ async def upload_cv(
             "target_locations": [prefs_dict.get("geography")] if prefs_dict.get("geography") else [],
             "fields": prefs_dict.get("domains") or parsed_data.get("fields", []),
             "preferences": prefs_dict,
-            "name": parsed_data.get("full_name") or user.get("name"),
-            "email": parsed_data.get("email") or user.get("email"),
-            "linkedin_url": parsed_data.get("linkedin_url") or user.get("linkedin_url")
         }
         
         get_supabase().table("users").update(update_data).eq("id", user["id"]).execute()
