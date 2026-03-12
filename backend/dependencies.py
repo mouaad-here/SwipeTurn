@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, Header
 from jose import jwt
 from supabase import create_client, Client
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import config
 
@@ -17,13 +17,12 @@ def get_supabase() -> Client:
         print("Supabase client initialized.")
     return _supabase
 
-# Clerk JWT authentication + optional Guest mode (for development without auth)
-def get_current_user_id(
+def get_token_payload(
     authorization: Optional[str] = Header(None),
-    x_guest_id: Optional[str] = Header(None, alias="X-Guest-Id"),
-) -> str:
-    """Returns clerk_user_id from JWT, or guest_{id} if X-Guest-Id provided and no valid auth."""
-    # Try Bearer token first
+    x_guest_id: Optional[str] = Header(None, alias="X-Guest-Id")
+) -> Dict[str, Any]:
+    """Verifies a Clerk RS256 JWT and returns payload, or falls back to Guest Mode."""
+    # 1. Try Bearer token first
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         if token and token != "null":
@@ -37,20 +36,32 @@ def get_current_user_id(
                     )
                 else:
                     payload = jwt.decode(token, key="", options={"verify_signature": False, "verify_aud": False})
-                clerk_id = payload.get("sub")
-                if clerk_id:
-                    return clerk_id
-            except Exception:
-                pass
+                return payload
+            except Exception as e:
+                pass # Fall through to guest or fail
 
-    # Fall back to guest mode when no valid Bearer token
+    # 2. Fall back to guest mode
     if x_guest_id and x_guest_id.strip():
-        return f"guest_{x_guest_id.strip()}"
-    raise HTTPException(status_code=401, detail="Invalid or missing authorization. Provide Bearer token or X-Guest-Id header.")
+        guest_sub = f"guest_{x_guest_id.strip()}"
+        return {
+            "sub": guest_sub,
+            "email": f"{guest_sub}@swipeturn.guest",
+            "first_name": "Guest",
+            "last_name": "User"
+        }
+        
+    raise HTTPException(status_code=401, detail="Invalid authorization. Provide Bearer token or X-Guest-Id header.")
 
+def get_current_user_id(payload: Dict[str, Any] = Depends(get_token_payload)) -> str:
+    """Returns just the clerk_user_id or guest_id."""
+    return payload.get("sub")
 
-def get_current_user(clerk_id: str = Depends(get_current_user_id)):
-    """Fetches user row from Supabase. If missing, auto-creates it."""
+def get_current_user(payload: Dict[str, Any] = Depends(get_token_payload)) -> Dict[str, Any]:
+    """Fetches user row from Supabase. If missing, auto-creates it using Clerk claims (or Guest claims)."""
+    clerk_id = payload.get("sub")
+    if not clerk_id:
+         raise HTTPException(status_code=401, detail="Invalid token payload: missing sub")
+         
     try:
         supabase = get_supabase()
         response = supabase.table('users').select('*').eq('clerk_user_id', clerk_id).execute()
@@ -58,12 +69,19 @@ def get_current_user(clerk_id: str = Depends(get_current_user_id)):
         if len(response.data) > 0:
             return response.data[0]
             
+        # Extract name from JWT claims
+        first_name = payload.get("first_name", "")
+        last_name = payload.get("last_name", "")
+        name = payload.get("name") or f"{first_name} {last_name}".strip() or "Guest"
+        
+        # Extract email from JWT claims
+        email = payload.get("email") or f"{clerk_id}@swipeturn.com"
+        
         # If user doesn't exist in Supabase yet, create them 
-        # (in production, we'd normally extract name/email from the JWT payload claims here)
         new_user = {
             "clerk_user_id": clerk_id,
-            "email": "user@swipeturn.com",
-            "name": "New User"
+            "email": email,
+            "name": name
         }
         
         insert_response = supabase.table('users').insert(new_user).execute()

@@ -85,6 +85,24 @@ def calculate_match_score(
     return round(min(score, 100.0), 1)
 
 
+def calculate_hybrid_score(keyword_score: float, semantic_similarity: float) -> float:
+    """
+    Blend keyword-based score with semantic similarity from embeddings.
+
+    - keyword_score: existing 0–100 score from calculate_match_score
+    - semantic_similarity: cosine similarity in [-1, 1]
+
+    We map cosine to [0, 100] and average:
+        semantic_scaled = (sim + 1) * 50
+        final = 0.5 * keyword_score + 0.5 * semantic_scaled
+    """
+    # Clamp to a safe range in case upstream callers pass values slightly outside [-1, 1]
+    sim = max(-1.0, min(1.0, float(semantic_similarity)))
+    semantic_scaled = (sim + 1.0) * 50.0
+    final = 0.5 * float(keyword_score) + 0.5 * semantic_scaled
+    return float(max(0.0, min(100.0, final)))
+
+
 def get_skill_breakdown(user_skills: List[str], job_skills: List[str]) -> Dict[str, List[str]]:
     """Separates job skills into what the user has matched vs what is missing."""
     if not job_skills:

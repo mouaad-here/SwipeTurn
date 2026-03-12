@@ -66,18 +66,33 @@ def is_likely_duplicate(new_job: dict, existing_jobs: list[dict]) -> bool:
 def build_job_profile_text(
     title: str,
     required_skills: list[str],
+    preferred_skills: list[str],
     experience_level: Optional[str],
     description: str,
 ) -> str:
-    """Build compact job profile text for embedding. Prefixed for E5 model."""
-    skills_text = ", ".join(required_skills[:25])
+    """
+    Build compact job profile text for embedding. Prefixed for E5 model.
+
+    Structure:
+      - Role title
+      - Required skills (full list)
+      - Preferred skills (full list)
+      - Experience level
+      - Short description snippet focused on responsibilities/requirements
+    """
+    required = [s for s in (required_skills or []) if s]
+    preferred = [s for s in (preferred_skills or []) if s]
+    req_text = ", ".join(required)
+    pref_text = ", ".join(preferred)
     level = experience_level or "unspecified"
-    desc_snippet = (description or "").strip()[:1800]
+    desc_snippet = (description or "").strip()[:2500]
+
     return (
         f"passage: Role: {title}. "
-        f"Required skills: {skills_text}. "
+        f"Required: {req_text}. "
+        f"Preferred: {pref_text}. "
         f"Experience level: {level}. "
-        f"Job details: {desc_snippet}"
+        f"Context: {desc_snippet}"
     ).strip()
 
 
@@ -362,6 +377,7 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             embedding_text = build_job_profile_text(
                 title=title,
                 required_skills=payload["required_skills"],
+                preferred_skills=preferred_skills,
                 experience_level=payload["experience_level"],
                 description=raw_desc,
             )
@@ -463,6 +479,7 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             embedding_text = build_job_profile_text(
                 title=title,
                 required_skills=payload["required_skills"],
+                preferred_skills=preferred_skills,
                 experience_level=payload["experience_level"],
                 description=raw_desc,
             )

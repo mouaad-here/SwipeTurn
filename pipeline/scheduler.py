@@ -23,9 +23,9 @@ SOURCES = [
 
 def _load_model():
     """Load the multilingual embedding model once per scheduler process."""
-    print("Loading embedding model 'intfloat/multilingual-e5-small' (once for all sources)...")
+    print("Loading embedding model 'efederici/multilingual-e5-small-4096' (once for all sources)...")
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer('intfloat/multilingual-e5-small')
+    model = SentenceTransformer('efederici/multilingual-e5-small-4096')
     print("Model loaded.")
     return model
 

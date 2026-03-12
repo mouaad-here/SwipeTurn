@@ -24,9 +24,9 @@ SOURCES = [
 def run_pipeline():
     print("Starting job pipeline run (once)...", time.strftime("%Y-%m-%d %H:%M:%S"))
 
-    print("Loading embedding model 'intfloat/multilingual-e5-small' (once for all sources)...")
+    print("Loading embedding model 'efederici/multilingual-e5-small-4096' (once for all sources)...")
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer('intfloat/multilingual-e5-small')
+    model = SentenceTransformer('efederici/multilingual-e5-small-4096')
     print("Model loaded.")
 
     total_new = 0

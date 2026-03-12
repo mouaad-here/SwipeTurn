@@ -28,9 +28,9 @@ def main():
 
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    print("Loading intfloat/multilingual-e5-small...")
+    print("Loading efederici/multilingual-e5-small-4096...")
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer("intfloat/multilingual-e5-small")
+    model = SentenceTransformer("efederici/multilingual-e5-small-4096")
     print("Model loaded.")
 
     offset = 0
@@ -57,14 +57,14 @@ def main():
                     skills = json.loads(skills)
                 except Exception:
                     skills = []
-            skills_text = ", ".join(skills[:25])
+            skills_text = ", ".join(skills)
             level = job.get("experience_level") or "unspecified"
-            desc = (job.get("description_text") or "")[:1800]
+            desc = (job.get("description_text") or "")[:2500]
             text = (
                 f"passage: Role: {job.get('title', '')}. "
-                f"Required skills: {skills_text}. "
+                f"Required: {skills_text}. "
                 f"Experience level: {level}. "
-                f"Job details: {desc}"
+                f"Context: {desc}"
             ).strip()
             texts.append(text)
 
@@ -82,7 +82,7 @@ def main():
         print(f"  Updated {len(jobs)} jobs (total: {total_updated})")
         offset += BATCH_SIZE
 
-    print(f"\nDone. Re-embedded {total_updated} jobs with multilingual-e5-small.")
+    print(f"\nDone. Re-embedded {total_updated} jobs with multilingual-e5-small-4096.")
 
 
 if __name__ == "__main__":

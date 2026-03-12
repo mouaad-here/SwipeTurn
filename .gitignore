@@ -31,12 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
-.env
 .env*.local
-
-# Python
-__pycache__/
-*.pyc
 
 # typescript
 *.tsbuildinfo
@@ -47,52 +42,5 @@ app-example
 /ios
 /android
 
-# Experiments
-/experiments/
-
-# Data Science & Pipeline
-*.ipynb
-*.csv
-plots/
-plots_analysis/
-plots_morocco/
-strategic_plots/
-*.pdf
-*.sqlite3
-jobs_rows.csv
-
-# Debug & local-only backend scripts
-backend/out.txt
-backend/test_*.py
-backend/db_analysis.py
-backend/analyze_profile.py
-backend/verify_matching.py
-backend/reset_users.py
-
-# Debug & local-only pipeline scripts
-pipeline/test_*.py
-
-# Markdown docs — only README.md should be in the repo
-*.md
-!README.md
-
-# Supabase migrations and config (local only)
-supabase/
-
-# Text artifacts (keep requirements files)
-*.txt
-!**/requirements.txt
-
-# Study/research data (local only)
-study_of_data/
-
-# Cursor plans (local AI session data)
-.cursor/plans/
-
-# Python virtual environments
-backend/venv/
-backend/.venv/
-pipeline/venv/
-pipeline/.venv/
-
+.env
 _developer_docs/

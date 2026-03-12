@@ -6,15 +6,20 @@ import os
 
 router = APIRouter(prefix="/swipes", tags=["Swipes"])
 
+
 class SwipeAction(BaseModel):
     job_id: str
     direction: str
+
+
+class SwipeStatusUpdate(BaseModel):
+    status: str
 
 # For testing use high limit; set env FREE_SWIPE_LIMIT=10 for production
 FREE_SWIPE_LIMIT = int(os.environ.get("FREE_SWIPE_LIMIT", "999"))
 
 @router.post("")
-async def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
+def register_swipe(action: SwipeAction, user: dict = Depends(get_current_user)):
     """Registers a left or right swipe, enforcing the daily free swipe limit."""
     user_id = user["id"]
     
@@ -69,12 +74,21 @@ async def register_swipe(action: SwipeAction, user: dict = Depends(get_current_u
         raise HTTPException(status_code=400, detail="Failed to register swipe or already swiped")
 
 @router.get("/saved")
-async def get_saved_jobs(user: dict = Depends(get_current_user)):
+def get_saved_jobs(user: dict = Depends(get_current_user)):
     """Returns all jobs the user swiped right on, including full job objects."""
     user_id = user["id"]
     
     try:
-        swipes_res = get_supabase().table("swipes").select("job_id, created_at, status, applied_at").eq("user_id", user_id).eq("direction", "right").order("created_at", desc=True).execute()
+        swipes_res = (
+            get_supabase()
+            .table("swipes")
+            .select("job_id, created_at, status, applied_at")
+            .eq("user_id", user_id)
+            .eq("direction", "right")
+            .neq("status", "archived")
+            .order("created_at", desc=True)
+            .execute()
+        )
         rows = swipes_res.data or []
         if not rows:
             return {"data": []}
@@ -107,3 +121,57 @@ async def get_saved_jobs(user: dict = Depends(get_current_user)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to fetch saved jobs: {str(e)}")
+
+
+@router.patch("/{job_id}")
+def update_saved_status(job_id: str, body: SwipeStatusUpdate, user: dict = Depends(get_current_user)):
+    """Update the status of a saved job (e.g. mark as applied / saved)."""
+    user_id = user["id"]
+    status = body.status.strip().lower()
+    if status not in {"saved", "applied"}:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    update_data = {"status": status}
+    if status == "applied":
+        update_data["applied_at"] = datetime.now(timezone.utc).isoformat()
+    else:
+        update_data["applied_at"] = None
+    try:
+        res = (
+            get_supabase()
+            .table("swipes")
+            .update(update_data)
+            .eq("user_id", user_id)
+            .eq("job_id", job_id)
+            .eq("direction", "right")
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Saved swipe not found")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update status: {str(e)}")
+
+
+@router.delete("/{job_id}")
+def remove_saved_job(job_id: str, user: dict = Depends(get_current_user)):
+    """Archive a saved job so it no longer appears in the user's list."""
+    user_id = user["id"]
+    try:
+        res = (
+            get_supabase()
+            .table("swipes")
+            .update({"status": "archived"})
+            .eq("user_id", user_id)
+            .eq("job_id", job_id)
+            .eq("direction", "right")
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Saved swipe not found")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to remove saved job: {str(e)}")

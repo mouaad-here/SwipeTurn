@@ -28,9 +28,9 @@ def main():
 
     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    print("Loading intfloat/multilingual-e5-small...")
+    print("Loading efederici/multilingual-e5-small-4096...")
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer("intfloat/multilingual-e5-small")
+    model = SentenceTransformer("efederici/multilingual-e5-small-4096")
     print("Model loaded.")
 
     res = (
@@ -68,7 +68,7 @@ def main():
         except Exception as e:
             print(f"  Failed for user {user['id']}: {e}")
 
-    print(f"\nDone. Re-embedded {updated} user CVs with multilingual-e5-small.")
+    print(f"\nDone. Re-embedded {updated} user CVs with multilingual-e5-small-4096.")
 
 
 if __name__ == "__main__":

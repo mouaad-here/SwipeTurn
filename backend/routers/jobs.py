@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import List, Optional
 
 from dependencies import get_supabase, get_current_user
-from services.matching import calculate_match_score, get_skill_breakdown, cosine_similarity
-from services.embeddings import build_user_profile_text_from_user
+from services.matching import calculate_match_score, calculate_hybrid_score, get_skill_breakdown, cosine_similarity
+from services.embeddings import build_user_profile_text_from_user, get_embedding_model
 from constants import (
     get_seniority_filter,
     build_eligibility_filter,
@@ -27,7 +27,7 @@ def _safe_posted_at_ts(job: dict) -> float:
 
 
 @router.get("/feed")
-async def get_job_feed(
+def get_job_feed(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
     user: dict = Depends(get_current_user)
@@ -131,17 +131,40 @@ async def get_job_feed(
 
         candidate_jobs = [j for j in candidate_jobs if _matches_user_domain(j)]
 
-    # 5. Score with simplified 3-component formula
+    # 5. Resolve user embedding for semantic matching
+    user_embedding = None
+    try:
+        if user.get("cv_embedding"):
+            user_embedding = user["cv_embedding"]
+        else:
+            profile_text = build_user_profile_text_from_user(user)
+            if profile_text:
+                model = get_embedding_model()
+                user_embedding = model.encode(profile_text).tolist()
+    except Exception:
+        # Fall back to keyword-only matching if embedding fails for any reason
+        user_embedding = None
+
+    # 6. Score with keyword + semantic components
     scored_jobs = []
     for job in candidate_jobs:
-        match_score = calculate_match_score(job, user)
+        keyword_score = calculate_match_score(job, user)
         breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
-        job["match_score"] = match_score
+
+        # Semantic similarity: only when both embeddings are present
+        if user_embedding is not None and job.get("description_embedding") is not None:
+            semantic_sim = cosine_similarity(user_embedding, job.get("description_embedding"))
+        else:
+            # Neutral: treat as 0 similarity, which maps to 50/100 after scaling
+            semantic_sim = 0.0
+
+        final_score = calculate_hybrid_score(keyword_score, semantic_sim)
+        job["match_score"] = final_score
         job["matched_skills"] = breakdown["matched"]
         job["missing_skills"] = breakdown["missing"]
         scored_jobs.append(job)
 
-    # 6. Filter by minimum score, then sort by score + recency
+    # 7. Filter by minimum score, then sort by score + recency
     strict_jobs = [j for j in scored_jobs if float(j.get("match_score") or 0) >= MIN_FEED_SCORE]
     strict_jobs.sort(
         key=lambda x: (float(x.get("match_score") or 0.0), _safe_posted_at_ts(x)),
@@ -152,6 +175,7 @@ async def get_job_feed(
     end_idx = start_idx + limit
     paginated_jobs = strict_jobs[start_idx:end_idx]
 
+    has_cv = bool(user.get("cv_storage_path"))
     return {
         "page": page,
         "limit": limit,
@@ -159,12 +183,13 @@ async def get_job_feed(
         "total_returned": len(paginated_jobs),
         "geography_mode": user_geography or "both",
         "min_feed_score": MIN_FEED_SCORE,
+        "has_cv": has_cv,
         "jobs": paginated_jobs,
     }
 
 
 @router.get("/search")
-async def search_jobs(
+def search_jobs(
     q: str = Query(..., min_length=1),
     exact_priority: bool = Query(False),
     page: int = Query(1, ge=1),
@@ -262,7 +287,7 @@ async def search_jobs(
 
 
 @router.get("/{job_id}")
-async def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
+def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
     """Fetches a single job detail view and calculates dynamic match for the current user."""
     res = get_supabase().table("jobs").select("*").eq("id", job_id).execute()
 
@@ -281,7 +306,7 @@ async def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/{job_id}/apply")
-async def mark_applied(job_id: str, user: dict = Depends(get_current_user)):
+def mark_applied(job_id: str, user: dict = Depends(get_current_user)):
     """Mark job as applied (intent = action) and return apply_url."""
     user_id = user["id"]
 
