@@ -159,33 +159,19 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                             </View>
                         )}
                     </View>
-                    <Text style={styles.jobTitle} numberOfLines={2}>{job.title}</Text>
-                    <View style={styles.skillsRow}>
-                        {(Array.isArray(job.skills) ? job.skills : []).map((skill: any, idx: number) => (
-                            <View key={idx} style={[styles.skillChip, skill.matched ? styles.skillChipMatched : styles.skillChipUnmatched]}>
-                                {skill.matched ? (
-                                    <Text style={styles.skillChipTextMatched}>✓ {skill.name}</Text>
-                                ) : (
-                                    <View style={styles.skillChipContentUnmatched}>
-                                        <View style={styles.greyDot} />
-                                        <Text style={styles.skillChipTextUnmatched}>{skill.name}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        ))}
-                    </View>
-                    <Text style={styles.description} numberOfLines={8}>
+                    <Text style={styles.jobTitle} numberOfLines={1}>{job.title}</Text>
+                    <Text style={styles.description} numberOfLines={3}>
                         {job.description != null ? String(job.description) : ''}
                     </Text>
                 </View>
 
                 <View style={styles.cardBottom}>
                     <View style={styles.matchRow}>
-                        <Text style={styles.matchLabel}>CV Match <Text style={styles.matchScore}>{job.matchScore}%</Text></Text>
+                        <Text style={styles.matchLabel}>CV Match <Text style={styles.matchScore}>{Math.round(job.matchScore)}%</Text></Text>
                         <Text style={styles.recommendedLabel}>RECOMMENDED FOR YOU</Text>
                     </View>
                     <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, { width: `${job.matchScore}%` }]} />
+                        <View style={[styles.progressFill, { width: `${Math.round(job.matchScore)}%` }]} />
                     </View>
                 </View>
 
@@ -252,7 +238,7 @@ export default function SwipeScreen() {
                 <BottomSheetFooter {...props} bottomInset={0}>
                     <View style={[styles.sheetBottomBar, { paddingBottom: Math.max(insets.bottom, 24) }]}>
                         <View style={styles.sheetMatchCircle}>
-                            <Text style={styles.sheetMatchScore}>{selectedJob.matchScore}%</Text>
+                            <Text style={styles.sheetMatchScore}>{Math.round(selectedJob.matchScore)}%</Text>
                             <Text style={styles.sheetMatchLabel}>MATCH</Text>
                         </View>
                         <Pressable
@@ -416,9 +402,6 @@ export default function SwipeScreen() {
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerLeft}>
-                    <View style={styles.orangeCircle}>
-                        <Ionicons name="swap-horizontal" size={16} color="white" />
-                    </View>
                     <Text style={styles.headerTitle}>Swipe<Text style={{ color: COLORS.accent }}>Turn</Text></Text>
                 </View>
                 <Pressable style={styles.bellButton} hitSlop={12}>
@@ -538,6 +521,24 @@ export default function SwipeScreen() {
                                 <View style={styles.sheetTabInactive}>
                                     <Text style={styles.sheetTabTextInactive}>Company Details</Text>
                                 </View>
+                            </View>
+                        </View>
+
+                        <View style={styles.sheetSkillsSection}>
+                            <Text style={styles.sheetSectionTitle}>Required Skills</Text>
+                            <View style={styles.sheetSkillsRow}>
+                                {(Array.isArray(selectedJob.skills) ? selectedJob.skills : []).map((skill: any, idx: number) => (
+                                    <View key={idx} style={[styles.sheetSkillChip, skill.matched ? styles.sheetSkillChipMatched : styles.sheetSkillChipUnmatched]}>
+                                        {skill.matched ? (
+                                            <Text style={styles.sheetSkillTextMatched}>✓ {skill.name}</Text>
+                                        ) : (
+                                            <View style={styles.sheetSkillContentUnmatched}>
+                                                <View style={styles.sheetGreyDot} />
+                                                <Text style={styles.sheetSkillTextUnmatched}>{skill.name}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                ))}
                             </View>
                         </View>
 
@@ -666,6 +667,15 @@ const styles = StyleSheet.create({
     sheetTabTextActive: { fontFamily: 'ClashDisplay-Bold', fontSize: 16, color: COLORS.accent },
     sheetTabInactive: { paddingVertical: 12, marginRight: 24 },
     sheetTabTextInactive: { fontFamily: 'Satoshi-Medium', fontSize: 16, color: COLORS.textMuted },
+    sheetSkillsSection: { paddingHorizontal: 20, marginBottom: 16 },
+    sheetSkillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    sheetSkillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+    sheetSkillChipMatched: { backgroundColor: COLORS_ALPHA.successLight, borderColor: COLORS.accentSuccess },
+    sheetSkillChipUnmatched: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
+    sheetSkillTextMatched: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accentSuccess },
+    sheetSkillContentUnmatched: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    sheetGreyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
+    sheetSkillTextUnmatched: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
     sheetDescSection: { paddingHorizontal: 20 },
     sheetSectionTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.textPrimary, marginBottom: 16 },
     sheetDescBox: { backgroundColor: COLORS.surface, padding: 16, borderRadius: 12 },

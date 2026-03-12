@@ -1,16 +1,15 @@
+import { mockOnboardingState } from '@/app/(onboarding)/store';
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { clearGuestId } from '@/utils/guestId';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef } from 'react';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { clearGuestId } from '@/utils/guestId';
-import { mockOnboardingState } from '@/app/(onboarding)/store';
-import { useAuthHeaders } from '@/hooks/useAuthHeaders';
-import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 
 function getInitials(name: string | undefined): string {
     if (!name || !name.trim()) return '?';
@@ -32,7 +31,7 @@ export default function ProfileScreen() {
     const fetchingRef = useRef(false);
     // Keep a stable ref to the latest fetchProfile so useFocusEffect doesn't
     // re-run on every internal Clerk tick (isSignedIn/getToken reference changes).
-    const fetchProfileRef = useRef<() => Promise<void>>(async () => {});
+    const fetchProfileRef = useRef<() => Promise<void>>(async () => { });
 
     const fetchProfile = useCallback(async () => {
         if (fetchingRef.current) return;
@@ -117,7 +116,7 @@ export default function ProfileScreen() {
                             };
                             clearClerkStorage(window.localStorage);
                             clearClerkStorage(window.sessionStorage);
-                        } catch (_) {}
+                        } catch (_) { }
                         window.location.href = '/';
                         return;
                     }
@@ -300,7 +299,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
     scrollContent: { paddingBottom: 120 },
     avatarSection: { paddingTop: 64, alignItems: 'center', paddingBottom: 24 },
-    avatarCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accentRed, justifyContent: 'center', alignItems: 'center' },
+    avatarCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
     avatarInitials: { fontFamily: 'ClashDisplay-Bold', fontSize: 32, color: 'white' },
     nameText: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary, marginTop: 14 },
     universityText: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMeta, letterSpacing: 1.2, marginTop: 4 },
@@ -308,7 +307,7 @@ const styles = StyleSheet.create({
     profileCompletionContainer: { marginTop: 16, width: 200 },
     completionLabel: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.textMuted, marginBottom: 6, textAlign: 'center' },
     track: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden' },
-    fill: { width: '72%', height: '100%', backgroundColor: COLORS.accentRed, borderRadius: 3 },
+    fill: { width: '72%', height: '100%', backgroundColor: COLORS.accent, borderRadius: 3 },
 
     sectionHeader: { paddingHorizontal: 24, marginBottom: 10, marginTop: 12 },
     sectionLabel: { fontFamily: 'Satoshi-Regular', fontSize: 11, color: COLORS.textMeta, letterSpacing: 1.4 },
@@ -322,7 +321,7 @@ const styles = StyleSheet.create({
     resumeInfo: { flex: 1, gap: 2 },
     resumeFilename: { fontFamily: 'Satoshi-Medium', fontSize: 14, color: COLORS.textPrimary },
     resumeUpdated: { fontFamily: 'Satoshi-Regular', fontSize: 11, color: COLORS.textMeta },
-    updateCvBtn: { backgroundColor: COLORS.accentRed, paddingHorizontal: 14, paddingVertical: 12, minHeight: 48, borderRadius: 50, justifyContent: 'center' },
+    updateCvBtn: { backgroundColor: COLORS.accent, paddingHorizontal: 14, paddingVertical: 12, minHeight: 48, borderRadius: 50, justifyContent: 'center' },
     updateCvText: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: 'white' },
 
     chipsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -334,7 +333,7 @@ const styles = StyleSheet.create({
     geographyValue: { fontFamily: 'Satoshi-Medium', fontSize: 13, color: COLORS.textPrimary },
     changePrefBtn: { marginLeft: 'auto' },
     changePrefText: { fontFamily: 'Satoshi-Medium', fontSize: 13, color: COLORS.accent },
-    addChipBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.accentRed, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
+    addChipBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.accent, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
 
     settingsCard: {
         marginHorizontal: 24, marginBottom: 120, backgroundColor: COLORS.surface, borderRadius: 16,
@@ -345,6 +344,6 @@ const styles = StyleSheet.create({
     settingLabel: { flex: 1, fontFamily: 'Satoshi-Medium', fontSize: 15, color: COLORS.textPrimary },
     settingValue: { fontFamily: 'Satoshi-Regular', fontSize: 14, color: COLORS.textMeta, marginRight: 4 },
     errorMessage: { fontFamily: 'Satoshi-Medium', fontSize: 15, color: COLORS.textPrimary, textAlign: 'center', marginBottom: 16 },
-    retryButton: { backgroundColor: COLORS.accentRed, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 50, minHeight: 48, justifyContent: 'center' },
+    retryButton: { backgroundColor: COLORS.accent, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 50, minHeight: 48, justifyContent: 'center' },
     retryButtonText: { fontFamily: 'Satoshi-Medium', fontSize: 15, color: 'white' },
 });

@@ -143,11 +143,8 @@ export default function PreviewScreen() {
     draft.job_type?.length && draft.job_type.length > 0
       ? draft.job_type.map((t) => JOB_TYPE_LABELS[t] ?? t).join(', ')
       : '—';
-  const domainsText =
-    [...(draft.domains ?? []), ...(draft.subcategories ?? [])].join(', ') || '—';
-  const skillsText = draft.keywords?.length
-    ? draft.keywords.join(', ')
-    : '—';
+  const domainsList = [...(draft.domains ?? []), ...(draft.subcategories ?? [])];
+  const skillsList = draft.keywords ?? [];
 
   const handleUploadCv = useCallback(async () => {
     setCvError(null);
@@ -235,11 +232,31 @@ export default function PreviewScreen() {
         </SectionCard>
 
         <SectionCard label="Domains & subcategories" onEdit={() => router.push('/(onboarding)/domains')}>
-          <Text style={styles.sectionValue}>{domainsText}</Text>
+          {domainsList.length > 0 ? (
+            <View style={styles.skillsChipWrap}>
+              {domainsList.map((d, i) => (
+                <View key={i} style={styles.skillChip}>
+                  <Text style={styles.skillChipText}>{d}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.sectionValue}>—</Text>
+          )}
         </SectionCard>
 
         <SectionCard label="Skills & keywords" onEdit={() => router.push('/(onboarding)/skills')}>
-          <Text style={styles.sectionValue}>{skillsText}</Text>
+          {skillsList.length > 0 ? (
+            <View style={styles.skillsChipWrap}>
+              {skillsList.map((s, i) => (
+                <View key={i} style={styles.skillChip}>
+                  <Text style={styles.skillChipText}>{s}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.sectionValue}>—</Text>
+          )}
         </SectionCard>
 
         <View style={styles.cvSection}>
