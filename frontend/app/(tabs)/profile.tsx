@@ -179,11 +179,14 @@ export default function ProfileScreen() {
             { label: 'Global / Remote 🌍', value: 'global' },
             { label: 'Both', value: 'both' },
         ];
-        Alert.alert('Job Geography', 'Where do you want to see jobs?',
+        Alert.alert(
+            'Job Geography',
+            'Where do you want to see jobs?',
             [
                 ...options.map(o => ({ text: o.label, onPress: () => updatePreference({ geography: o.value }) })),
                 { text: 'Cancel', style: 'cancel' },
-            ]
+            ],
+            { cancelable: true }
         );
     };
 
