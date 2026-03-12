@@ -328,16 +328,6 @@ export default function ProfileScreen() {
                     <Text style={styles.sectionLabel}>MY PREFERENCES</Text>
                 </View>
                 <View style={[styles.card, { flexDirection: 'column', alignItems: 'flex-start' }]}>
-                    <View style={styles.geographyRow}>
-                        <Text style={styles.geographyLabel}>Showing jobs:</Text>
-                        <Text style={styles.geographyValue}>{geographyLabel}</Text>
-                        <Pressable
-                            onPress={pickGeography}
-                            style={styles.changePrefBtn}
-                        >
-                            <Text style={styles.changePrefText}>Change</Text>
-                        </Pressable>
-                    </View>
                     <View style={styles.chipsContainer}>
                         {visibleChips.length > 0 ? (
                             <>
@@ -353,7 +343,7 @@ export default function ProfileScreen() {
                                 )}
                             </>
                         ) : (
-                            <Text style={styles.emptyPrefs}>Add skills and domains in onboarding</Text>
+                            <Text style={styles.emptyPrefs}>Add skills and domains in Domains &amp; Skills</Text>
                         )}
                     </View>
                 </View>
@@ -392,7 +382,7 @@ export default function ProfileScreen() {
                         <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
-                    <Pressable style={styles.settingRow} onPress={() => router.push('/(onboarding)/domains')}>
+                    <Pressable style={styles.settingRow} onPress={() => router.push('/domains-skills')}>
                         <View style={styles.settingIconCenter}>
                             <Ionicons name="layers-outline" size={20} color={COLORS.textMuted} />
                         </View>
