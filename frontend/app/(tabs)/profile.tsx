@@ -209,11 +209,14 @@ export default function ProfileScreen() {
                 }
             );
         } else {
-            Alert.alert('Seniority', 'Select your experience level',
+            Alert.alert(
+                'Seniority',
+                'Select your experience level',
                 [
                     ...options.map(o => ({ text: o.label, onPress: () => updatePreference({ seniority: o.value }) })),
                     { text: 'Cancel', style: 'cancel' },
-                ]
+                ],
+                { cancelable: true }
             );
         }
     };
@@ -224,11 +227,14 @@ export default function ProfileScreen() {
             { label: 'Fixed-term (CDD)', value: 'fixed-term' },
             { label: 'Internship (Stage)', value: 'internship' },
         ];
-        Alert.alert('Job Type', 'What contract type are you looking for?',
+        Alert.alert(
+            'Job Type',
+            'What contract type are you looking for?',
             [
                 ...options.map(o => ({ text: o.label, onPress: () => updatePreference({ job_type: [o.value] }) })),
                 { text: 'Cancel', style: 'cancel' },
-            ]
+            ],
+            { cancelable: true }
         );
     };
 
