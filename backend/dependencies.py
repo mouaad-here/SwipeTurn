@@ -3,6 +3,20 @@ from jose import jwt
 from supabase import create_client, Client, ClientOptions
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+import httpx
+
+# MONKEYPATCH HTTPX: Disable HTTP/2 globally to prevent WinError 10035 socket crashes on Windows
+original_client_init = httpx.Client.__init__
+def patched_client_init(self, *args, **kwargs):
+    kwargs['http2'] = False
+    original_client_init(self, *args, **kwargs)
+httpx.Client.__init__ = patched_client_init
+
+original_async_client_init = httpx.AsyncClient.__init__
+def patched_async_client_init(self, *args, **kwargs):
+    kwargs['http2'] = False
+    original_async_client_init(self, *args, **kwargs)
+httpx.AsyncClient.__init__ = patched_async_client_init
 
 import config
 
@@ -86,9 +100,16 @@ def get_current_user(payload: Dict[str, Any] = Depends(get_token_payload)) -> Di
             "name": name
         }
         
-        insert_response = supabase.table('users').insert(new_user).execute()
-        return insert_response.data[0]
-        
+        try:
+            insert_response = supabase.table('users').insert(new_user).execute()
+            return insert_response.data[0]
+        except Exception as insert_err:
+            if "23505" in str(insert_err) or "already exists" in str(insert_err):
+                response = supabase.table('users').select('*').eq('clerk_user_id', clerk_id).execute()
+                if len(response.data) > 0:
+                    return response.data[0]
+            raise insert_err
+            
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
