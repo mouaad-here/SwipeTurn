@@ -20,6 +20,7 @@ function getInitials(name: string | undefined): string {
 }
 
 const FETCH_TIMEOUT_MS = 15000;
+const FEED_CACHE_KEY = 'swipturn_feed_cache';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -101,8 +102,9 @@ export default function ProfileScreen() {
             mockOnboardingState.keywords = [];
             mockOnboardingState.name = '';
             try { await AsyncStorage.removeItem('swipturn:onboarding_done'); } catch (_) { }
-            router.dismissAll();
-            router.replace('/');
+            setTimeout(() => {
+                router.replace('/welcome');
+            }, 50);
             return;
         }
         const doSignOut = async () => {
@@ -127,8 +129,10 @@ export default function ProfileScreen() {
                         window.location.href = '/';
                         return;
                     }
-                    router.dismissAll();
-                    router.replace('/');
+                    // We DO NOT call router.replace('/') here.
+                    // Instead, we wait for Clerk's context to update `isSignedIn` to false.
+                    // Once that happens, `app/(tabs)/_layout.tsx` useLogoutRedirect hook
+                    // will catch the state change and fire router.replace('/') safely.
                 })
                 .catch((error) => {
                     console.error('Logout error:', error);
@@ -165,6 +169,10 @@ export default function ProfileScreen() {
             });
             // Optimistic: update local state immediately
             setUser((prev: any) => prev ? { ...prev, preferences: { ...prev.preferences, ...patch } } : prev);
+            // Invalidate swipe feed cache so home recommendations refresh on next visit
+            try {
+                await AsyncStorage.removeItem(FEED_CACHE_KEY);
+            } catch { }
         } catch { }
     };
 
@@ -174,11 +182,14 @@ export default function ProfileScreen() {
             { label: 'Global / Remote 🌍', value: 'global' },
             { label: 'Both', value: 'both' },
         ];
-        Alert.alert('Job Geography', 'Where do you want to see jobs?',
+        Alert.alert(
+            'Job Geography',
+            'Where do you want to see jobs?',
             [
                 ...options.map(o => ({ text: o.label, onPress: () => updatePreference({ geography: o.value }) })),
                 { text: 'Cancel', style: 'cancel' },
-            ]
+            ],
+            { cancelable: true }
         );
     };
 
@@ -204,11 +215,14 @@ export default function ProfileScreen() {
                 }
             );
         } else {
-            Alert.alert('Seniority', 'Select your experience level',
+            Alert.alert(
+                'Seniority',
+                'Select your experience level',
                 [
                     ...options.map(o => ({ text: o.label, onPress: () => updatePreference({ seniority: o.value }) })),
                     { text: 'Cancel', style: 'cancel' },
-                ]
+                ],
+                { cancelable: true }
             );
         }
     };
@@ -219,11 +233,14 @@ export default function ProfileScreen() {
             { label: 'Fixed-term (CDD)', value: 'fixed-term' },
             { label: 'Internship (Stage)', value: 'internship' },
         ];
-        Alert.alert('Job Type', 'What contract type are you looking for?',
+        Alert.alert(
+            'Job Type',
+            'What contract type are you looking for?',
             [
                 ...options.map(o => ({ text: o.label, onPress: () => updatePreference({ job_type: [o.value] }) })),
                 { text: 'Cancel', style: 'cancel' },
-            ]
+            ],
+            { cancelable: true }
         );
     };
 
@@ -323,16 +340,6 @@ export default function ProfileScreen() {
                     <Text style={styles.sectionLabel}>MY PREFERENCES</Text>
                 </View>
                 <View style={[styles.card, { flexDirection: 'column', alignItems: 'flex-start' }]}>
-                    <View style={styles.geographyRow}>
-                        <Text style={styles.geographyLabel}>Showing jobs:</Text>
-                        <Text style={styles.geographyValue}>{geographyLabel}</Text>
-                        <Pressable
-                            onPress={pickGeography}
-                            style={styles.changePrefBtn}
-                        >
-                            <Text style={styles.changePrefText}>Change</Text>
-                        </Pressable>
-                    </View>
                     <View style={styles.chipsContainer}>
                         {visibleChips.length > 0 ? (
                             <>
@@ -348,7 +355,7 @@ export default function ProfileScreen() {
                                 )}
                             </>
                         ) : (
-                            <Text style={styles.emptyPrefs}>Add skills and domains in onboarding</Text>
+                            <Text style={styles.emptyPrefs}>Add skills and domains in Domains &amp; Skills</Text>
                         )}
                     </View>
                 </View>
@@ -387,7 +394,7 @@ export default function ProfileScreen() {
                         <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
-                    <Pressable style={styles.settingRow} onPress={() => router.push('/(onboarding)/domains')}>
+                    <Pressable style={styles.settingRow} onPress={() => router.push('/domains-skills')}>
                         <View style={styles.settingIconCenter}>
                             <Ionicons name="layers-outline" size={20} color={COLORS.textMuted} />
                         </View>

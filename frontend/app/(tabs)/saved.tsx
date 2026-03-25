@@ -1,17 +1,21 @@
 import { COLORS } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { useAppStore } from '../../store/appStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
+    LayoutAnimation,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
+    UIManager,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,6 +80,7 @@ export default function SavedScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { getAuthHeaders } = useAuthHeaders();
+    const savedJobsFromStore = useAppStore(state => state.savedJobs);
 
     const [jobMap, setJobMap] = useState<Map<string, SavedJob>>(new Map());
     const [jobOrder, setJobOrder] = useState<string[]>([]);
@@ -84,7 +89,14 @@ export default function SavedScreen() {
     const loadingRef = useRef(false);
     const lastFetchedAtRef = useRef(0);
     const suppressNextFocusRef = useRef(false);
-    const COOLDOWN_MS = 10000;
+    const COOLDOWN_MS = 30000; // 30s cooldown between automatic refetches
+
+    // Enable smooth list animations on Android
+    useEffect(() => {
+        if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+            UIManager.setLayoutAnimationEnabledExperimental(true);
+        }
+    }, []);
 
     const loadSaved = useCallback(async (force = false) => {
         if (suppressNextFocusRef.current && !force) {
@@ -129,9 +141,34 @@ export default function SavedScreen() {
                 is_active: j.is_active,
                 posted_at: j.posted_at,
             }));
-            const newMap = new Map(jobs.map(j => [j.id, j]));
+
+            // Start from backend truth
+            const newMap = new Map<string, SavedJob>(jobs.map(j => [j.id, j]));
+            const orderSet = new Set<string>(jobs.map(j => j.id));
+
+            // Merge in any optimistic locally-saved jobs that might not have
+            // reached the backend yet, so they don't disappear after refresh.
+            savedJobsFromStore.forEach((j) => {
+                if (newMap.has(j.id)) return;
+                const optimisticJob: SavedJob = {
+                    id: j.id,
+                    title: j.title || 'Unknown',
+                    company: displayCompany(j.company),
+                    location: (j.location || '').toUpperCase(),
+                    timeAgo: 'Just now',
+                    apply_url: j.url || '',
+                    apply_email: '',
+                    status: 'saved',
+                    freshness: 'fresh',
+                    is_active: true,
+                    posted_at: undefined,
+                };
+                newMap.set(j.id, optimisticJob);
+                orderSet.add(j.id);
+            });
+
             setJobMap(newMap);
-            setJobOrder(jobs.map(j => j.id));
+            setJobOrder(Array.from(orderSet));
             lastFetchedAtRef.current = Date.now();
         } catch {
             setJobMap(new Map());
@@ -140,7 +177,46 @@ export default function SavedScreen() {
             loadingRef.current = false;
             setLoading(false);
         }
-    }, [getAuthHeaders]);
+    }, [getAuthHeaders, savedJobsFromStore]);
+
+    // Merge optimistic locally-saved jobs (from swipe-right) into the list immediately,
+    // so the user doesn't have to wait for the next backend refresh.
+    useEffect(() => {
+        if (!savedJobsFromStore || savedJobsFromStore.length === 0) return;
+        setJobMap(prevMap => {
+            const nextMap = new Map(prevMap);
+            let orderChanged = false;
+            const nextOrder = new Set(jobOrder);
+
+            savedJobsFromStore.forEach((j) => {
+                if (nextMap.has(j.id)) {
+                    return;
+                }
+                const optimisticJob: SavedJob = {
+                    id: j.id,
+                    title: j.title || 'Unknown',
+                    company: displayCompany(j.company),
+                    location: (j.location || '').toUpperCase(),
+                    timeAgo: 'Just now',
+                    apply_url: j.url || '',
+                    apply_email: '',
+                    status: 'saved',
+                    freshness: 'fresh',
+                    is_active: true,
+                    posted_at: undefined,
+                };
+                nextMap.set(j.id, optimisticJob);
+                nextOrder.add(j.id);
+                orderChanged = true;
+            });
+
+            if (orderChanged) {
+                setJobOrder(Array.from(nextOrder));
+            }
+            return nextMap;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [savedJobsFromStore]);
 
     useFocusEffect(
         useCallback(() => { loadSaved(); }, [loadSaved])
@@ -184,6 +260,8 @@ export default function SavedScreen() {
     };
 
     const handleRemove = async (item: SavedJob) => {
+        // Smooth row collapse animation
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         // Optimistic removal
         setJobMap(prev => { const next = new Map(prev); next.delete(item.id); return next; });
         setJobOrder(prev => prev.filter(id => id !== item.id));
@@ -192,6 +270,7 @@ export default function SavedScreen() {
             const { API_URL } = await import('@/constants/api');
             await fetch(`${API_URL}/swipes/${item.id}`, { method: 'DELETE', headers });
         } catch {
+            // If backend fails, refresh from server truth
             loadSaved(true);
         }
     };
@@ -275,30 +354,37 @@ export default function SavedScreen() {
                 )}
             </View>
 
-            {loading ? (
+            {loading && allJobs.length === 0 ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={COLORS.accent} />
                 </View>
             ) : (
-                <FlatList
-                    data={allJobs}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
-                    contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <View style={styles.center}>
-                            <Text style={styles.emptyIcon}>📋</Text>
-                            <Text style={styles.emptyTitle}>Nothing saved yet</Text>
-                            <Text style={styles.emptySubtitle}>Swipe right on jobs to save them here.</Text>
+                <>
+                    <FlatList
+                        data={allJobs}
+                        keyExtractor={item => item.id}
+                        renderItem={renderItem}
+                        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                            <View style={styles.center}>
+                                <Text style={styles.emptyIcon}>📋</Text>
+                                <Text style={styles.emptyTitle}>Nothing saved yet</Text>
+                                <Text style={styles.emptySubtitle}>Swipe right on jobs to save them here.</Text>
+                            </View>
+                        }
+                        ListFooterComponent={
+                            allJobs.length > 0 ? (
+                                <Text style={styles.hint}>Long-press a card to remove it</Text>
+                            ) : null
+                        }
+                    />
+                    {loading && allJobs.length > 0 && (
+                        <View style={styles.inlineLoader}>
+                            <ActivityIndicator size="small" color={COLORS.accent} />
                         </View>
-                    }
-                    ListFooterComponent={
-                        allJobs.length > 0 ? (
-                            <Text style={styles.hint}>Long-press a card to remove it</Text>
-                        ) : null
-                    }
-                />
+                    )}
+                </>
             )}
         </View>
     );
@@ -447,5 +533,10 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 16,
         marginBottom: 8,
+    },
+    inlineLoader: {
+        position: 'absolute',
+        top: 8,
+        right: 24,
     },
 });
