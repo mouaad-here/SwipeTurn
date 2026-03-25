@@ -102,8 +102,9 @@ export default function ProfileScreen() {
             mockOnboardingState.keywords = [];
             mockOnboardingState.name = '';
             try { await AsyncStorage.removeItem('swipturn:onboarding_done'); } catch (_) { }
-            router.dismissAll();
-            router.replace('/');
+            setTimeout(() => {
+                router.replace('/welcome');
+            }, 50);
             return;
         }
         const doSignOut = async () => {
@@ -128,8 +129,10 @@ export default function ProfileScreen() {
                         window.location.href = '/';
                         return;
                     }
-                    router.dismissAll();
-                    router.replace('/');
+                    // We DO NOT call router.replace('/') here.
+                    // Instead, we wait for Clerk's context to update `isSignedIn` to false.
+                    // Once that happens, `app/(tabs)/_layout.tsx` useLogoutRedirect hook
+                    // will catch the state change and fire router.replace('/') safely.
                 })
                 .catch((error) => {
                     console.error('Logout error:', error);

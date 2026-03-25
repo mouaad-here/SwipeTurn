@@ -19,6 +19,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Required to process OAuth deep-links properly on Android and clear stale browser sessions
+WebBrowser.maybeCompleteAuthSession();
+
 function useWarmUpBrowser() {
     useEffect(() => {
         if (Platform.OS !== 'web') {
@@ -42,9 +45,9 @@ export default function SignupScreen() {
         (async () => {
             try {
                 const cached = await AsyncStorage.getItem('swipturn:onboarding_done');
-                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/');
+                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/welcome');
             } catch {
-                router.replace('/');
+                router.replace('/welcome');
             }
         })();
     }, [isLoaded]); // intentionally omit isSignedIn

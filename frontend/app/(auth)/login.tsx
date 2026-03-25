@@ -20,6 +20,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Required to process OAuth deep-links properly on Android and clear stale browser sessions
+WebBrowser.maybeCompleteAuthSession();
+
 // Critical for Android: warm up the browser so OAuth completes properly
 // and Clerk can process the callback when the app restarts.
 function useWarmUpBrowser() {
@@ -47,9 +50,9 @@ export default function LoginScreen() {
         (async () => {
             try {
                 const cached = await AsyncStorage.getItem('swipturn:onboarding_done');
-                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/');
+                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/welcome');
             } catch {
-                router.replace('/');
+                router.replace('/welcome');
             }
         })();
     }, [isLoaded]); // intentionally omit isSignedIn — see comment above
@@ -116,9 +119,10 @@ export default function LoginScreen() {
                 try { await AsyncStorage.setItem('swipturn:onboarding_done', 'true'); } catch (_) { }
                 router.replace('/(tabs)/swipe');
             }
-        } catch (err) {
-            console.error("OAuth error", err);
-            setError('Google Login failed. Please try again.');
+        } catch (err: any) {
+            console.error("OAuth error", JSON.stringify(err, null, 2) || err);
+            const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || JSON.stringify(err);
+            setError(`Google Login failed: ${msg}`);
         }
     }, [startOAuthFlow, router]);
 

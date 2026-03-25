@@ -32,8 +32,7 @@ function useLogoutRedirect() {
     // Detect transition: was signed in, now not → this is a real logout
     if (wasSignedIn.current && !isSignedIn) {
       wasSignedIn.current = false;
-      router.dismissAll();
-      router.replace('/');
+      router.replace('/welcome');
       return;
     }
 
