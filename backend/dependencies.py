@@ -23,6 +23,23 @@ import config
 # Initialize Supabase client lazily
 _supabase: Optional[Client] = None
 
+# Columns fetched internally for every authenticated request.
+# cv_embedding is included because jobs.py uses it directly for feed matching.
+# cv_text and cv_storage_path are intentionally excluded — they are no longer
+# written to the DB (see Component 2) and would only bloat the response.
+_INTERNAL_USER_COLUMNS = ",".join([
+    "id", "clerk_user_id", "email", "name",
+    "parsed_experience_level", "preferences",
+    "extracted_skills", "cv_embedding",
+    "target_locations", "fields", "desired_job_type",
+    "relocation_preference", "linkedin_url", "portfolio_url",
+    "onboarding_completed_at", "languages",
+    "is_guest", "created_at", "device_id",
+    "subscription", "subscription_expires_at",
+    "work_authorization",
+])
+
+
 def get_supabase() -> Client:
     global _supabase
     if _supabase is None:
@@ -80,7 +97,7 @@ def get_current_user(payload: Dict[str, Any] = Depends(get_token_payload)) -> Di
          
     try:
         supabase = get_supabase()
-        response = supabase.table('users').select('*').eq('clerk_user_id', clerk_id).execute()
+        response = supabase.table('users').select(_INTERNAL_USER_COLUMNS).eq('clerk_user_id', clerk_id).execute()
         
         if len(response.data) > 0:
             return response.data[0]
@@ -102,10 +119,15 @@ def get_current_user(payload: Dict[str, Any] = Depends(get_token_payload)) -> Di
         
         try:
             insert_response = supabase.table('users').insert(new_user).execute()
-            return insert_response.data[0]
+            if insert_response.data:
+                # Re-fetch with scoped columns to stay consistent
+                response = supabase.table('users').select(_INTERNAL_USER_COLUMNS).eq('clerk_user_id', clerk_id).execute()
+                if response.data:
+                    return response.data[0]
+            return insert_response.data[0] if insert_response.data else {}
         except Exception as insert_err:
             if "23505" in str(insert_err) or "already exists" in str(insert_err):
-                response = supabase.table('users').select('*').eq('clerk_user_id', clerk_id).execute()
+                response = supabase.table('users').select(_INTERNAL_USER_COLUMNS).eq('clerk_user_id', clerk_id).execute()
                 if len(response.data) > 0:
                     return response.data[0]
             raise insert_err

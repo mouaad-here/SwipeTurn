@@ -15,9 +15,9 @@ def get_embedding_model():
     return _model
 
 
-def build_user_profile_text(parsed_data: dict, cv_text: str) -> str:
+def build_user_profile_text(parsed_data: dict, cv_text: str = "") -> str:
     """
-    Build compact user profile text for embedding.
+    Build compact user profile text for embedding from a freshly parsed CV.
 
     Structure (signal-first, tuned for E5):
       - Skills (full list)
@@ -25,7 +25,10 @@ def build_user_profile_text(parsed_data: dict, cv_text: str) -> str:
       - Experience level
       - Short summary
       - Top 3 roles or 2 projects
-      - Short CV snippet for extra context
+
+    NOTE: cv_text is accepted for API compatibility but intentionally NOT included
+    in the embedding. Raw CV text is processed in-memory only and never persisted.
+    The structured fields above carry equivalent signal without raw PII exposure.
     """
     skills = parsed_data.get("skills") or []
     fields = parsed_data.get("fields") or []
@@ -56,8 +59,6 @@ def build_user_profile_text(parsed_data: dict, cv_text: str) -> str:
                 parts.append(str(p))
         work_str = "Projects: " + "; ".join(parts) + ". "
 
-    cv_snippet = (cv_text or "").strip()[:1500]
-
     return (
         f"query: Candidate profile. "
         f"Skills: {skills_text}. "
@@ -65,7 +66,6 @@ def build_user_profile_text(parsed_data: dict, cv_text: str) -> str:
         f"Experience: {exp_level}. "
         f"Summary: {summary}. "
         f"{work_str}"
-        f"CV: {cv_snippet}"
     ).strip()
 
 
@@ -73,20 +73,21 @@ def build_user_profile_text_from_user(user: dict) -> str:
     """
     Build compact text from persisted user fields (no fresh CV parse).
 
-    Uses the same high-signal structure as build_user_profile_text but
-    pulls from stored preferences and cv_text.
+    Uses the same high-signal structure as build_user_profile_text but pulls
+    from stored structured fields only. Raw CV text is intentionally excluded —
+    it is never persisted to the database (processed in-memory during upload only).
     """
     prefs = user.get("preferences") or {}
     skills = user.get("extracted_skills") or []
     domains = prefs.get("domains") or []
     keywords = prefs.get("keywords") or []
-    exp_level = user.get("experience_level") or prefs.get("seniority") or "mid"
-    cv_text_raw = (user.get("cv_text") or "").strip()
+    # parsed_experience_level = CV-derived seniority; preferences.seniority = user-chosen.
+    # Use parsed value for embedding richness; fall back to user-chosen then default.
+    exp_level = user.get("parsed_experience_level") or prefs.get("seniority") or "mid"
 
     skills_text = ", ".join(skills)
     domains_text = ", ".join(domains)
     keywords_text = ", ".join(keywords)
-    cv_snippet = cv_text_raw[:1500]
 
     return (
         f"query: Candidate profile. "
@@ -94,7 +95,8 @@ def build_user_profile_text_from_user(user: dict) -> str:
         f"Domains: {domains_text}. "
         f"Keywords: {keywords_text}. "
         f"Experience: {exp_level}. "
-        f"CV: {cv_snippet}"
+        f"Summary: {summary}. "
+        f"{work_str}"
     ).strip()
 
 def generate_cv_embedding(parsed_data: dict, cv_text: str) -> list:
