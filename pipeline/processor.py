@@ -19,6 +19,7 @@ else:
     print("WARNING: Supabase URL or Key not set. DB inserts will fail.")
 
 DOMESTIC_SOURCES = {"rekrute", "stagiaires"}
+JOB_MAX_AGE_DAYS = int(os.getenv("JOB_MAX_AGE_DAYS", "14"))
 
 
 def _normalize_text_for_dedup(value: str | None) -> str:
@@ -132,12 +133,18 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
     from data_cleaning import (
         normalize_location,
         strip_html,
+        clean_description_for_llm,
         parse_posted_at,
         normalize_expires_at,
         job_region_from_location_and_source,
         extract_city_country,
     )
-    from llm_enrichment import process_jobs_parallel, set_global_accessibility, extract_fields_from_llm
+    from llm_enrichment import (
+        process_jobs_parallel,
+        set_global_accessibility,
+        extract_fields_from_llm,
+        LLM_DESCRIPTION_MAX_CHARS,
+    )
     from dateutil import parser as date_parser
 
     new_count = 0
@@ -197,6 +204,19 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
 
     for job in raw_jobs:
         try:
+            # --- PRE-FILTER: Age check ---
+            posted_at_raw = job.get('posted_at')
+            if posted_at_raw:
+                from dateutil import parser as date_parser
+                try:
+                    posted_dt = date_parser.parse(str(posted_at_raw))
+                    if (now - posted_dt).days > JOB_MAX_AGE_DAYS:
+                        print(f"  [Age Filter] Skipping job {job.get('source_id')} (posted {(now - posted_dt).days}d ago)")
+                        skipped_count += 1
+                        continue
+                except Exception:
+                    pass
+
             apply_url = (job.get('apply_url') or '').strip()
             if not apply_url or not apply_url.startswith(('http://', 'https://')):
                 skip_no_url += 1
@@ -213,7 +233,9 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             company = (job.get('company') or 'Unknown Company').strip()
 
             raw_desc = str(job.get('description', '')).strip()
-            raw_desc = strip_html(raw_desc) if raw_desc else ""
+            # Clean for LLM early so we have consistent desc length/format
+            raw_desc = clean_description_for_llm(raw_desc, max_chars=LLM_DESCRIPTION_MAX_CHARS)
+            
             if not raw_desc or len(raw_desc) < 20:
                 raw_desc = f"Job opportunity for {title} at {company}. This is an active hiring position."
 
@@ -295,7 +317,7 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             apply_url = candidate["apply_url"]
 
             if llm_result is not None:
-                llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result)
+                llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result, title=title)
                 llm_success += 1
             else:
                 llm_fields = {}
@@ -342,10 +364,10 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
                 "company_logo_url": logo_url_val,
                 "is_remote": bool(job.get('is_remote', False)),
                 "type": job.get('type', 'full-time'),
-                "description_text": raw_desc[:5000] if raw_desc else None,
+                "description_text": raw_desc[:5000], # DB limit
                 "required_skills": llm_fields.get("required_skills") or [],
-                "visa_sponsorship": llm_fields.get("visa_sponsorship", False),
-                "open_to_intl": llm_fields.get("open_to_intl", False),
+                "visa_sponsorship": llm_fields.get("visa_sponsorship"),
+                "open_to_intl": llm_fields.get("open_to_intl"),
                 "apply_url": apply_url,
                 "apply_email": job.get('apply_email'),
                 "source": job.get('source', 'unknown'),
@@ -399,7 +421,7 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
             db_job_id = candidate["db_job_id"]
 
             if llm_result is not None:
-                llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result)
+                llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result, title=title)
                 llm_success += 1
             else:
                 llm_fields = {}
@@ -446,10 +468,10 @@ def process_jobs(raw_jobs: list[dict], model) -> dict:
                 "company_logo_url": logo_url_val,
                 "is_remote": bool(job.get('is_remote', False)),
                 "type": job.get('type', 'full-time'),
-                "description_text": raw_desc[:5000] if raw_desc else None,
+                "description_text": raw_desc[:5000],
                 "required_skills": llm_fields.get("required_skills") or [],
-                "visa_sponsorship": llm_fields.get("visa_sponsorship", False),
-                "open_to_intl": llm_fields.get("open_to_intl", False),
+                "visa_sponsorship": llm_fields.get("visa_sponsorship"),
+                "open_to_intl": llm_fields.get("open_to_intl"),
                 "apply_url": apply_url,
                 "apply_email": job.get('apply_email'),
                 "source": job.get('source', 'unknown'),

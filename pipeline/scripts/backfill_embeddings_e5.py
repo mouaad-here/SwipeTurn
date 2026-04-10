@@ -50,19 +50,26 @@ def main():
 
         texts = []
         for job in jobs:
-            skills = job.get("required_skills") or []
-            if isinstance(skills, str):
+            # Match processor.py:build_job_profile_text exactly
+            # Extract required vs preferred from the job record
+            # (Note: job record only has required_skills list in this script right now)
+            req_skills = job.get("required_skills") or []
+            if isinstance(req_skills, str):
                 import json
-                try:
-                    skills = json.loads(skills)
-                except Exception:
-                    skills = []
-            skills_text = ", ".join(skills)
+                try: req_skills = json.loads(req_skills)
+                except Exception: req_skills = []
+            
+            # Since some old jobs might not have preferred_skills stored in the main table, 
+            # we use req_skills as primary. In the real pipeline we dual-write to job_skills.
+            # For backfill simplicity, we'll use what we have in the jobs table.
+            req_text = ", ".join(req_skills) if req_skills else ""
             level = job.get("experience_level") or "unspecified"
-            desc = (job.get("description_text") or "")[:2500]
+            desc = (job.get("description_text") or "").strip()[:2500]
+
             text = (
                 f"passage: Role: {job.get('title', '')}. "
-                f"Required: {skills_text}. "
+                f"Required: {req_text}. "
+                f"Preferred: . "
                 f"Experience level: {level}. "
                 f"Context: {desc}"
             ).strip()

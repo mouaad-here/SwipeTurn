@@ -114,7 +114,8 @@ def main():
                 total_skipped += 1
                 continue
 
-            llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result)
+            title = job.get("title") or "Unknown Title"
+            llm_fields, required_skills, preferred_skills = extract_fields_from_llm(llm_result, title=title)
             payload = {"globally_accessible": True}
             set_global_accessibility(payload, llm_result)
 
@@ -124,8 +125,10 @@ def main():
                 "experience_level": llm_fields.get("experience_level"),
                 "job_type": llm_fields.get("job_type"),
                 "remote_type": llm_fields.get("remote_type"),
-                "visa_sponsorship": llm_fields.get("visa_sponsorship", False),
-                "open_to_intl": llm_fields.get("open_to_intl", False),
+                # IMPORTANT: preserve None for visa_sponsorship / open_to_intl.
+                # None means "not mentioned" and must stay different from explicit False.
+                "visa_sponsorship": llm_fields.get("visa_sponsorship"),
+                "open_to_intl": llm_fields.get("open_to_intl"),
                 "globally_accessible": payload.get("globally_accessible", True),
                 "required_skills": llm_fields.get("required_skills") or [],
             }

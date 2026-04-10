@@ -6,7 +6,6 @@ import random
 import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from patchright.sync_api import sync_playwright
 from typing import Any
 
 
@@ -315,52 +314,80 @@ def _extract_experience_hint(text: str, title: str) -> str | None:
     return None
 
 
-MAX_PAGES = 20
+MAX_PAGES_DEFAULT = 20
 
 
-def fetch_rekrute(max_pages: int = MAX_PAGES, fetch_full_descriptions: bool = True) -> list[dict]:
+def fetch_rekrute(max_pages: int = MAX_PAGES_DEFAULT, fetch_full_descriptions: bool = True) -> list[dict]:
+    """
+    Fetch jobs from Rekrute using plain HTTP (requests) for listing pages.
+    Discovers total pages from pagination links in raw HTML to avoid hardcoded limits.
+    """
     jobs = []
     pages_scraped = 0
     posted_at_real_count = 0
     posted_at_fallback_count = 0
-    print("Initializing Patchright browser for Rekrute (Pagination mode)...")
+    
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,fr;q=0.8",
+        "Referer": "https://www.rekrute.com/",
+    })
+
+    print("Fetching Rekrute listings via HTTP...")
+    
+    # Attempt to find last page from Page 1 first
+    total_pages = max_pages
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-            )
-            page = context.new_page()
+        first_page_url = "https://www.rekrute.com/offres.html?postuler=1&page=1"
+        r = session.get(first_page_url, timeout=15)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            pagination = soup.select(".pagination")
+            if pagination:
+                links = pagination[0].find_all("a")
+                if links:
+                    # Look for the last numeric link or 'Suivant' neighbor
+                    # Rekrute pagination usually has '1 2 3 ... 145 Suivant'
+                    # The second to last link often has the max page number if Suivant is present.
+                    potential_pages = []
+                    for link in links:
+                        try:
+                            val = link.text.strip()
+                            if val.isdigit():
+                                potential_pages.append(int(val))
+                        except ValueError:
+                            continue
+                    if potential_pages:
+                        total_pages = min(max(potential_pages), 100) # Safety cap at 100 pages for a single run
+                        print(f"Dynamic pagination discovery: {total_pages} total pages found.")
+    except Exception as e:
+        print(f"Failed to discover pagination dynamically: {e}. Falling back to max_pages={max_pages}")
+
+    try:
+        for page_num in range(1, total_pages + 1):
+            url = f"https://www.rekrute.com/offres.html?postuler=1&page={page_num}"
+            print(f"Fetching Rekrute Page {page_num}...")
             
-            for page_num in range(1, max_pages + 1):
-                url_candidates = [
-                    f"https://www.rekrute.com/offres.html?postuler=1&page={page_num}",
-                    f"https://www.rekrute.com/offres.html?s=1&p={page_num}&o=1",
-                ]
-                print(f"Fetching Rekrute Page {page_num}...")
-                
-                loaded = False
-                for url in url_candidates:
-                    try:
-                        page.goto(url, wait_until="networkidle", timeout=20000)
-                        page.wait_for_selector("li.post-id", timeout=10000)
-                        loaded = True
-                        break
-                    except Exception:
-                        continue
-                if not loaded:
-                    print(f"Skipping or end of pagination at page {page_num}.")
+            try:
+                resp = session.get(url, timeout=15)
+                if resp.status_code != 200:
+                    print(f"Skipping page {page_num} due to status {resp.status_code}.")
                     break
                 
-                html_content = page.content()
-                soup = BeautifulSoup(html_content, 'html.parser')
+                if "captcha" in resp.text.lower() or "challenge" in resp.text.lower():
+                    print(f"Anti-bot detected on page {page_num}. Terminating run.")
+                    break
+
+                soup = BeautifulSoup(resp.text, 'html.parser')
                 job_cards = soup.find_all('li', class_='post-id')
                 
                 if not job_cards:
-                    print("No more job cards found.")
+                    print(f"No more job cards found at page {page_num}.")
                     break
-                pages_scraped += 1
                     
+                pages_scraped += 1
                 print(f"Found {len(job_cards)} job cards on page {page_num}.")
                 
                 for card in job_cards:
@@ -406,7 +433,8 @@ def fetch_rekrute(max_pages: int = MAX_PAGES, fetch_full_descriptions: bool = Tr
                                 remote_type = "FULLY_REMOTE" if is_remote else None
                             if detail.get("experience_level_hint"):
                                 experience_hint = detail["experience_level_hint"]
-                        time.sleep(1.2)
+                        time.sleep(1.0) # Respectful delay between detail requests
+
                     if not posted_at:
                         posted_at = datetime.utcnow().isoformat()
                         posted_at_fallback_count += 1
@@ -436,12 +464,15 @@ def fetch_rekrute(max_pages: int = MAX_PAGES, fetch_full_descriptions: bool = Tr
                         job_entry["experience_level_hint"] = experience_hint
                     jobs.append(job_entry)
                     
-                # Small delay to mimic human reading and avoid blocks
-                time.sleep(random.uniform(1, 2))
-                
-            browser.close()
+                # Standard delay between index pages
+                time.sleep(random.uniform(1.5, 3))
+            
+            except Exception as e:
+                print(f"Error on page {page_num}: {e}")
+                break
+
     except Exception as e:
-        print(f"fetch_rekrute failed via patchright: {e}")
+        print(f"fetch_rekrute failed via HTTP: {e}")
     print(
         f"[rekrute] Scraped {pages_scraped} pages, found {len(jobs)} jobs, "
         f"real_posted_at={posted_at_real_count}, fallback_posted_at={posted_at_fallback_count}"

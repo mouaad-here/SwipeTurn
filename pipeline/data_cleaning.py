@@ -150,6 +150,29 @@ def strip_html(html_str: Optional[str], max_length: Optional[int] = None) -> str
     return s
 
 
+def clean_description_for_llm(text: str, max_chars: int = 6000) -> str:
+    """
+    Conservative cleaning for LLM enrichment:
+    1. Decode HTML and strip tags
+    2. Normalize whitespace (multi-space/newline -> single)
+    3. Truncate to max_chars
+    """
+    if not text:
+        return ""
+    
+    # 1. HTML strip + unescape
+    cleaned = strip_html(text)
+    
+    # 2. Resilient whitespace normalization (strip_html already does some, but let's be thorough)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    
+    # 3. Truncate
+    if len(cleaned) > max_chars:
+        cleaned = cleaned[:max_chars]
+        
+    return cleaned
+
+
 # Default days when source does not provide expires_at. Many offers are 1 month; tune per-source later.
 DEFAULT_EXPIRES_DAYS = 60
 
