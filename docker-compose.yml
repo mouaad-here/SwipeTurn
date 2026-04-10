@@ -1,0 +1,74 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: swipturn-proxy
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - swipturn-caddy-data:/data
+      - swipturn-caddy-config:/config
+    networks:
+      - swipturn-network
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: swipturn-api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    expose:
+      - "8003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - swipturn-network
+    volumes:
+      - swipturn-hf-cache:/models/hf
+    environment:
+      HF_HOME: /models/hf
+
+  pipeline:
+    build:
+      context: ./pipeline
+      dockerfile: Dockerfile
+    container_name: swipturn-pipeline
+    restart: unless-stopped
+    env_file:
+      - ./pipeline/.env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - swipturn-network
+    volumes:
+      - swipturn-hf-cache:/models/hf
+    environment:
+      HF_HOME: /models/hf
+
+networks:
+  swipturn-network:
+    driver: bridge
+
+volumes:
+  swipturn-caddy-data:
+  swipturn-caddy-config:
+  swipturn-hf-cache:

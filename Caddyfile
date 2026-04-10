@@ -1,0 +1,13 @@
+{
+    email support@swipeturn.com
+}
+
+api.swipeturn.com {
+    encode zstd gzip
+    reverse_proxy api:8003
+}
+
+swipeturn.com, www.swipeturn.com {
+    encode zstd gzip
+    reverse_proxy api:8003
+}
