@@ -1,5 +1,6 @@
-import { COLORS } from '@/constants/colors';
-import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+﻿import API_URL from '@/constants/api';
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
+import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
 import { useAppStore } from '../../store/appStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GuestBanner } from '@/components/GuestBanner';
 
 interface SavedJob {
     id: string;
@@ -79,7 +81,7 @@ const FRESHNESS_COLORS: Record<string, string> = {
 export default function SavedScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { getAuthHeaders } = useAuthHeaders();
+    const { getAuthHeaders, isSignedIn } = useAuthHeaders();
     const savedJobsFromStore = useAppStore(state => state.savedJobs);
 
     const [jobMap, setJobMap] = useState<Map<string, SavedJob>>(new Map());
@@ -113,7 +115,6 @@ export default function SavedScreen() {
         setLoading(true);
         try {
             const headers = await getAuthHeaders();
-            const { API_URL } = await import('@/constants/api');
             const res = await fetch(`${API_URL}/swipes/saved`, { headers });
             if (!res.ok) { setJobMap(new Map()); setJobOrder([]); return; }
             const data = await res.json();
@@ -156,7 +157,7 @@ export default function SavedScreen() {
                     company: displayCompany(j.company),
                     location: (j.location || '').toUpperCase(),
                     timeAgo: 'Just now',
-                    apply_url: j.url || '',
+                    apply_url: (j as any).url || (j as any).apply_url || '',
                     apply_email: '',
                     status: 'saved',
                     freshness: 'fresh',
@@ -198,7 +199,7 @@ export default function SavedScreen() {
                     company: displayCompany(j.company),
                     location: (j.location || '').toUpperCase(),
                     timeAgo: 'Just now',
-                    apply_url: j.url || '',
+                    apply_url: (j as any).url || (j as any).apply_url || '',
                     apply_email: '',
                     status: 'saved',
                     freshness: 'fresh',
@@ -248,7 +249,6 @@ export default function SavedScreen() {
 
         try {
             const headers = await getAuthHeaders();
-            const { API_URL } = await import('@/constants/api');
             await fetch(`${API_URL}/jobs/${item.id}/apply`, {
                 method: 'POST',
                 headers: { ...headers, 'Content-Type': 'application/json' },
@@ -267,7 +267,6 @@ export default function SavedScreen() {
         setJobOrder(prev => prev.filter(id => id !== item.id));
         try {
             const headers = await getAuthHeaders();
-            const { API_URL } = await import('@/constants/api');
             await fetch(`${API_URL}/swipes/${item.id}`, { method: 'DELETE', headers });
         } catch {
             // If backend fails, refresh from server truth
@@ -312,7 +311,7 @@ export default function SavedScreen() {
                             <>
                                 <Ionicons name="location-outline" size={11} color={COLORS.textMeta} />
                                 <Text style={styles.metaText}>{item.location}</Text>
-                                <Text style={styles.metaDot}>·</Text>
+                                <Text style={styles.metaDot}>┬À</Text>
                             </>
                         ) : null}
                         <Text style={[styles.metaText, { color: freshColor }]}>
@@ -348,7 +347,7 @@ export default function SavedScreen() {
                 {allJobs.length > 0 && (
                     <Text style={styles.headerSubtitle}>
                         {savedCount > 0 ? `${savedCount} saved` : ''}
-                        {savedCount > 0 && appliedCount > 0 ? '  ·  ' : ''}
+                        {savedCount > 0 && appliedCount > 0 ? '  ┬À  ' : ''}
                         {appliedCount > 0 ? `${appliedCount} applied` : ''}
                     </Text>
                 )}
@@ -360,15 +359,25 @@ export default function SavedScreen() {
                 </View>
             ) : (
                 <>
+                    {!isSignedIn && (
+                        <View style={{ paddingHorizontal: 16 }}>
+                            <GuestBanner />
+                        </View>
+                    )}
                     <FlatList
                         data={allJobs}
                         keyExtractor={item => item.id}
                         renderItem={renderItem}
                         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
                         showsVerticalScrollIndicator={false}
+                        getItemLayout={(_, index) => ({
+                            length: 90,
+                            offset: 90 * index,
+                            index,
+                        })}
                         ListEmptyComponent={
                             <View style={styles.center}>
-                                <Text style={styles.emptyIcon}>📋</Text>
+                                <Text style={styles.emptyIcon}>­ƒôï</Text>
                                 <Text style={styles.emptyTitle}>Nothing saved yet</Text>
                                 <Text style={styles.emptySubtitle}>Swipe right on jobs to save them here.</Text>
                             </View>
@@ -397,12 +406,12 @@ const styles = StyleSheet.create({
         paddingBottom: 16,
     },
     headerTitle: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 32,
         color: COLORS.textPrimary,
     },
     headerSubtitle: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 13,
         color: COLORS.textMeta,
         marginTop: 2,
@@ -440,7 +449,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#DCFCE7',
     },
     logoInitial: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 20,
         color: COLORS.textPrimary,
     },
@@ -449,12 +458,12 @@ const styles = StyleSheet.create({
         gap: 3,
     },
     jobTitle: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 15,
         color: COLORS.textPrimary,
     },
     companyName: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 13,
         color: COLORS.textMuted,
     },
@@ -465,7 +474,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     metaText: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 11,
         color: COLORS.textMeta,
     },
@@ -485,7 +494,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.textMeta,
     },
     applyBtnText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 13,
         color: 'white',
     },
@@ -499,7 +508,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
     },
     appliedText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 12,
         color: COLORS.accentSuccess,
     },
@@ -514,20 +523,20 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     emptyTitle: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 20,
         color: COLORS.textPrimary,
         marginBottom: 6,
     },
     emptySubtitle: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 14,
         color: COLORS.textMuted,
         textAlign: 'center',
         paddingHorizontal: 32,
     },
     hint: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 12,
         color: COLORS.textMeta,
         textAlign: 'center',

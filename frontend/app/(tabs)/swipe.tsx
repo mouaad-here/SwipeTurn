@@ -1,5 +1,6 @@
+﻿import API_URL from '@/constants/api';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
-import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { BottomSheetFooter, BottomSheetFooterProps, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -145,7 +146,7 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                         <View style={styles.companyInfo}>
                             <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(job.company)}</Text>
                             <View style={styles.companyMetaRow}>
-                                <Text style={styles.companyLocation}>📍 {job.location}</Text>
+                                <Text style={styles.companyLocation}>­ƒôì {job.location}</Text>
                                 {formatPostedAt(job.posted_at) ? (
                                     <Text style={styles.postedBadge}>{formatPostedAt(job.posted_at)}</Text>
                                 ) : null}
@@ -217,7 +218,7 @@ export default function SwipeScreen() {
                 if (raw) {
                     const parsed = JSON.parse(raw) as { jobs?: any[]; geographyMode?: string; timestamp?: number };
                     if (parsed?.jobs?.length && parsed.timestamp && Date.now() - parsed.timestamp < FEED_CACHE_TTL_MS) {
-                        // Dedup by ID — old cache entries may pre-date the dedup logic
+                        // Dedup by ID ÔÇö old cache entries may pre-date the dedup logic
                         const seenCache = new Set<string>();
                         const dedupedJobs = (parsed.jobs as any[]).filter(j => {
                             if (!j?.id || seenCache.has(j.id)) return false;
@@ -285,13 +286,13 @@ export default function SwipeScreen() {
         if (!silent) setLoading(true);
         try {
             const headers = await getAuthHeaders();
-            const { API_URL } = await import('@/constants/api');
 
             // Check if user has uploaded CV (non-blocking)
             fetch(`${API_URL}/users/me`, { headers }).then(async r => {
                 if (r.ok) {
                     const profileData = await r.json();
-                    setHasCv(!!profileData.cv_storage_path);
+                    // has_cv is computed from cv_embedding presence ÔÇö cv_storage_path was removed
+                    setHasCv(!!profileData.has_cv);
                 }
             }).catch(() => { });
 
@@ -300,7 +301,7 @@ export default function SwipeScreen() {
             });
 
             if (response.status === 401 || response.status === 403) {
-                // Do NOT redirect to welcome — let the auth guard in (tabs)/_layout.tsx handle this.
+                // Do NOT redirect to welcome ÔÇö let the auth guard in (tabs)/_layout.tsx handle this.
                 // If the session truly expired, Clerk will notify isSignedIn=false and the guard redirects.
                 setFeed([]);
                 loadingRef.current = false;
@@ -369,7 +370,6 @@ export default function SwipeScreen() {
                 }));
             } catch (_) { }
         } catch (error) {
-            const { API_URL } = await import('@/constants/api');
             console.error("Feed error:", error, "| API_URL:", `${API_URL}/jobs/feed`);
             if (!silent) {
                 setFeed([]);
@@ -399,7 +399,6 @@ export default function SwipeScreen() {
         // Async record swipe to backend
         try {
             const headers = await getAuthHeaders();
-            const { API_URL } = await import('@/constants/api');
             await fetch(`${API_URL}/swipes`, {
                 method: 'POST',
                 headers: {
@@ -558,7 +557,7 @@ export default function SwipeScreen() {
                                 {(Array.isArray(selectedJob.skills) ? selectedJob.skills : []).map((skill: any, idx: number) => (
                                     <View key={idx} style={[styles.sheetSkillChip, skill.matched ? styles.sheetSkillChipMatched : styles.sheetSkillChipUnmatched]}>
                                         {skill.matched ? (
-                                            <Text style={styles.sheetSkillTextMatched}>✓ {skill.name}</Text>
+                                            <Text style={styles.sheetSkillTextMatched}>Ô£ô {skill.name}</Text>
                                         ) : (
                                             <View style={styles.sheetSkillContentUnmatched}>
                                                 <View style={styles.sheetGreyDot} />
@@ -600,7 +599,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
     },
-    headerTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary },
+    headerTitle: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 24, color: COLORS.textPrimary },
     bellButton: { minWidth: 48, minHeight: 48, padding: 8, justifyContent: 'center', alignItems: 'center' },
     stackContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 110 },
     cardsWrapper: { width: SCREEN_WIDTH * 0.9, height: SCREEN_HEIGHT * 0.65, marginBottom: 10 },
@@ -629,86 +628,86 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.border
     },
-    companyInitial: { fontFamily: 'ClashDisplay-Bold', fontSize: 26, color: COLORS.textPrimary },
+    companyInitial: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 26, color: COLORS.textPrimary },
     companyInfo: { flex: 1 },
-    companyName: { fontFamily: 'Satoshi-Bold', fontSize: 16, color: COLORS.textPrimary, letterSpacing: -0.2 },
+    companyName: { fontFamily: 'Satoshi', fontWeight: '700', fontSize: 16, color: COLORS.textPrimary, letterSpacing: -0.2 },
     companyMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-    companyLocation: { fontFamily: 'Satoshi-Medium', fontSize: 14, color: COLORS.textMuted },
-    postedBadge: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accent },
+    companyLocation: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 14, color: COLORS.textMuted },
+    postedBadge: { fontFamily: 'Satoshi', fontWeight: '700', fontSize: 12, color: COLORS.accent },
     badgeRemote: { backgroundColor: COLORS_ALPHA.successLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-    badgeRemoteText: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accentSuccess, letterSpacing: 0.5 },
+    badgeRemoteText: { fontFamily: 'Satoshi', fontWeight: '700', fontSize: 12, color: COLORS.accentSuccess, letterSpacing: 0.5 },
     jobTitle: { fontFamily: 'Satoshi-Black', fontSize: 22, color: COLORS.textPrimary, lineHeight: 30, marginBottom: 16, letterSpacing: -0.5 },
     skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
     skillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
     skillChipMatched: { backgroundColor: COLORS_ALPHA.successLight, borderColor: COLORS.accentSuccess },
     skillChipUnmatched: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-    skillChipTextMatched: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accentSuccess },
+    skillChipTextMatched: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 12, color: COLORS.accentSuccess },
     skillChipContentUnmatched: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     greyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
-    skillChipTextUnmatched: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
-    description: { fontFamily: 'Satoshi-Regular', fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
+    skillChipTextUnmatched: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 12, color: COLORS.textMuted },
+    description: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 16, color: COLORS.textPrimary, lineHeight: 24 },
     cardBottom: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
     matchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    matchLabel: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.textMuted },
-    matchScore: { fontFamily: 'Satoshi-Bold', fontSize: 14, color: COLORS.accentSuccess },
-    recommendedLabel: { fontFamily: 'ClashDisplay-Bold', fontSize: 7.5, color: COLORS.textPrimary, letterSpacing: 0.5 },
+    matchLabel: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 12, color: COLORS.textMuted },
+    matchScore: { fontFamily: 'Satoshi', fontWeight: '700', fontSize: 14, color: COLORS.accentSuccess },
+    recommendedLabel: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 7.5, color: COLORS.textPrimary, letterSpacing: 0.5 },
     progressTrack: { height: 8, backgroundColor: COLORS.surface2, borderRadius: 4, overflow: 'hidden' },
     progressFill: { height: '100%', backgroundColor: COLORS.accentSuccess },
     indicator: { position: 'absolute', top: 40, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 4, borderRadius: 10, transform: [{ rotate: '-15deg' }] },
     indicatorLike: { right: 40, borderColor: COLORS.accentSuccess },
-    indicatorTextLike: { fontFamily: 'ClashDisplay-Bold', fontSize: 32, color: COLORS.accentSuccess, letterSpacing: 2 },
+    indicatorTextLike: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 32, color: COLORS.accentSuccess, letterSpacing: 2 },
     indicatorPass: { left: 40, borderColor: COLORS.accent },
-    indicatorTextPass: { fontFamily: 'ClashDisplay-Bold', fontSize: 32, color: COLORS.accent, letterSpacing: 2 },
+    indicatorTextPass: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 32, color: COLORS.accent, letterSpacing: 2 },
     instructionRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20, marginTop: 10, gap: 8 },
     instructionSide: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     instructionIconBox: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-    instructionText: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
-    instructionTextBold: { fontFamily: 'Satoshi-Medium', color: COLORS.textPrimary },
+    instructionText: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 12, color: COLORS.textMuted },
+    instructionTextBold: { fontFamily: 'Satoshi', fontWeight: '500', color: COLORS.textPrimary },
     instructionDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
     emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-    emptyTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 24, color: COLORS.textPrimary, marginTop: 16 },
-    emptySubtitle: { fontFamily: 'Satoshi-Regular', fontSize: 16, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
+    emptyTitle: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 24, color: COLORS.textPrimary, marginTop: 16 },
+    emptySubtitle: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 16, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
     refreshButton: { marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, minHeight: 48, justifyContent: 'center', backgroundColor: COLORS.accent, borderRadius: 24 },
-    refreshButtonText: { fontFamily: 'Satoshi-Medium', fontSize: 16, color: '#FFFFFF' },
+    refreshButtonText: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 16, color: '#FFFFFF' },
     sheetScroll: {},
     sheetHeaderGroup: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
     sheetHeaderBtn: { minWidth: 48, minHeight: 48, padding: 8, justifyContent: 'center', alignItems: 'center' },
-    sheetHeaderTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 18, color: COLORS.textPrimary },
+    sheetHeaderTitle: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 18, color: COLORS.textPrimary },
     sheetCard: { paddingHorizontal: 20 },
     sheetCompanyRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
     sheetCompanyLogo: { width: 64, height: 64, borderRadius: 16, backgroundColor: COLORS.surface2, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-    sheetCompanyInitial: { fontFamily: 'ClashDisplay-Bold', fontSize: 32, color: COLORS.textPrimary },
+    sheetCompanyInitial: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 32, color: COLORS.textPrimary },
     sheetCompanyInfo: { flex: 1 },
-    sheetJobTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.textPrimary, marginBottom: 4 },
-    sheetCompanyName: { fontFamily: 'Satoshi-Medium', fontSize: 16, color: COLORS.textMuted, marginBottom: 8 },
-    sheetLocationRow: { fontFamily: 'Satoshi-Regular', fontSize: 14, color: COLORS.textPrimary, marginBottom: 4 },
-    sheetSalaryRow: { fontFamily: 'Satoshi-Regular', fontSize: 14, color: COLORS.textPrimary, marginBottom: 8 },
+    sheetJobTitle: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 20, color: COLORS.textPrimary, marginBottom: 4 },
+    sheetCompanyName: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 16, color: COLORS.textMuted, marginBottom: 8 },
+    sheetLocationRow: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 14, color: COLORS.textPrimary, marginBottom: 4 },
+    sheetSalaryRow: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 14, color: COLORS.textPrimary, marginBottom: 8 },
     sheetPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
     sheetPill: { backgroundColor: COLORS.surface2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-    sheetPillText: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.textPrimary },
-    sheetTimeText: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
+    sheetPillText: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 12, color: COLORS.textPrimary },
+    sheetTimeText: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 12, color: COLORS.textMuted },
     sheetSaveBtn: { minWidth: 48, minHeight: 48, padding: 8, backgroundColor: COLORS.surface2, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
     sheetTabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 20 },
     sheetTabActive: { paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: COLORS.accent, marginRight: 24 },
-    sheetTabTextActive: { fontFamily: 'ClashDisplay-Bold', fontSize: 16, color: COLORS.accent },
+    sheetTabTextActive: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 16, color: COLORS.accent },
     sheetTabInactive: { paddingVertical: 12, marginRight: 24 },
-    sheetTabTextInactive: { fontFamily: 'Satoshi-Medium', fontSize: 16, color: COLORS.textMuted },
+    sheetTabTextInactive: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 16, color: COLORS.textMuted },
     sheetSkillsSection: { paddingHorizontal: 20, marginBottom: 16 },
     sheetSkillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     sheetSkillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
     sheetSkillChipMatched: { backgroundColor: COLORS_ALPHA.successLight, borderColor: COLORS.accentSuccess },
     sheetSkillChipUnmatched: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-    sheetSkillTextMatched: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accentSuccess },
+    sheetSkillTextMatched: { fontFamily: 'Satoshi', fontWeight: '500', fontSize: 12, color: COLORS.accentSuccess },
     sheetSkillContentUnmatched: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sheetGreyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
-    sheetSkillTextUnmatched: { fontFamily: 'Satoshi-Regular', fontSize: 12, color: COLORS.textMuted },
+    sheetSkillTextUnmatched: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 12, color: COLORS.textMuted },
     sheetDescSection: { paddingHorizontal: 20, paddingBottom: 8 },
-    sheetSectionTitle: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.textPrimary, marginBottom: 16 },
-    sheetDescText: { fontFamily: 'Satoshi-Regular', fontSize: 16, color: COLORS.textSecondary, lineHeight: 26 },
+    sheetSectionTitle: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 20, color: COLORS.textPrimary, marginBottom: 16 },
+    sheetDescText: { fontFamily: 'Satoshi', fontWeight: '400', fontSize: 16, color: COLORS.textSecondary, lineHeight: 26 },
     sheetBottomBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
     sheetMatchCircle: { alignItems: 'center', marginRight: 20 },
-    sheetMatchScore: { fontFamily: 'ClashDisplay-Bold', fontSize: 20, color: COLORS.accentSuccess },
-    sheetMatchLabel: { fontFamily: 'ClashDisplay-Bold', fontSize: 10, color: COLORS.textMuted, letterSpacing: 1 },
+    sheetMatchScore: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 20, color: COLORS.accentSuccess },
+    sheetMatchLabel: { fontFamily: 'ClashDisplay', fontWeight: '700', fontSize: 10, color: COLORS.textMuted, letterSpacing: 1 },
     sheetApplyBtn: {
         width: '60%',
         marginLeft: 'auto',
@@ -722,5 +721,5 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 6,
     },
-    sheetApplyBtnText: { fontFamily: 'Satoshi-Bold', fontSize: 17, color: '#FFFFFF', letterSpacing: 0.5 }
+    sheetApplyBtnText: { fontFamily: 'Satoshi', fontWeight: '700', fontSize: 17, color: '#FFFFFF', letterSpacing: 0.5 }
 });

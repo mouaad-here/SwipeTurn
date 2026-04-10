@@ -1,11 +1,11 @@
-/**
- * update-cv.tsx — Standalone CV upload modal (not part of onboarding flow)
+﻿/**
+ * update-cv.tsx ÔÇö Standalone CV upload modal (not part of onboarding flow)
  * Opened from Profile > My Resume > Update CV / Add CV
  * After upload completes, simply goes back to profile.
  */
-import { API_URL } from '@/constants/api';
+import API_URL from '@/constants/api';
 import { COLORS } from '@/constants/colors';
-import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -51,11 +51,28 @@ export default function UpdateCvScreen() {
             } as unknown as Blob);
 
             const headers = await getAuthHeaders();
-            const res = await fetch(`${API_URL}/users/upload-cv`, {
-                method: 'POST',
-                headers: { ...headers },
-                body: formData,
-            });
+            const controller = new AbortController();
+            // CV upload involves LLM parsing (~10-15s) ÔÇö give it a generous timeout
+            const timeoutId = setTimeout(() => controller.abort(), 90_000);
+            let res: Response;
+            try {
+                res = await fetch(`${API_URL}/users/upload-cv`, {
+                    method: 'POST',
+                    headers: { ...headers },
+                    body: formData,
+                    signal: controller.signal,
+                });
+            } catch (fetchErr: any) {
+                clearTimeout(timeoutId);
+                if (fetchErr?.name === 'AbortError') {
+                    setError('Upload timed out ÔÇö the server took too long. Please try again.');
+                } else {
+                    setError('Network error. Check your connection and try again.');
+                }
+                setUploading(false);
+                return;
+            }
+            clearTimeout(timeoutId);
 
             const data = await res.json().catch(() => ({}));
 
@@ -65,8 +82,10 @@ export default function UpdateCvScreen() {
                 return;
             }
 
-            if (Array.isArray(data.extracted_skills)) {
-                setSkills(data.extracted_skills.slice(0, 8));
+            // Backend returns { success: true, data: { skills: [...], parsed_experience_level, message } }
+            const skills = data?.data?.skills;
+            if (Array.isArray(skills)) {
+                setSkills(skills.slice(0, 8));
             }
             // Invalidate swipe feed cache so recommendations reload with new CV signal
             try {
@@ -97,7 +116,7 @@ export default function UpdateCvScreen() {
                 {!uploaded ? (
                     <>
                         <View style={styles.illustrationBox}>
-                            <Text style={styles.illustrationIcon}>📄</Text>
+                            <Text style={styles.illustrationIcon}>­ƒôä</Text>
                         </View>
 
                         <Text style={styles.title}>Upload your CV</Text>
@@ -181,7 +200,7 @@ const styles = StyleSheet.create({
     },
     backBtn: { width: 40, height: 40, justifyContent: 'center' },
     headerTitle: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 20,
         color: COLORS.textPrimary,
     },
@@ -202,14 +221,14 @@ const styles = StyleSheet.create({
     illustrationIcon: { fontSize: 44 },
     successCircle: { marginBottom: 24 },
     title: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 26,
         color: COLORS.textPrimary,
         textAlign: 'center',
         marginBottom: 10,
     },
     subtitle: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 15,
         color: COLORS.textMuted,
         textAlign: 'center',
@@ -228,13 +247,13 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
     },
     fileText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 13,
         color: COLORS.textMuted,
         flex: 1,
     },
     errorText: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 13,
         color: '#EF4444',
         textAlign: 'center',
@@ -254,7 +273,7 @@ const styles = StyleSheet.create({
     },
     uploadBtnDisabled: { opacity: 0.6 },
     uploadBtnText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 16,
         color: 'white',
     },
@@ -266,7 +285,7 @@ const styles = StyleSheet.create({
         marginBottom: 28,
     },
     skillsLabel: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 13,
         color: COLORS.textMuted,
         marginBottom: 10,
@@ -283,7 +302,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     skillChipText: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 13,
         color: COLORS.textPrimary,
     },
@@ -298,13 +317,13 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     doneBtnText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 16,
         color: 'white',
     },
     uploadAnotherBtn: { paddingVertical: 8 },
     uploadAnotherText: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 14,
         color: COLORS.textMuted,
         textDecorationLine: 'underline',
