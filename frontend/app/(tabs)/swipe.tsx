@@ -1,6 +1,6 @@
-﻿import API_URL from '@/constants/api';
+import { API_URL } from '@/constants/api';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
-import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { BottomSheetFooter, BottomSheetFooterProps, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -17,6 +17,7 @@ import { useAppStore } from '../../store/appStore';
 
 const FEED_CACHE_KEY = 'swipeturn_feed_cache';
 const FEED_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const PAGE_SIZE = 20;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.10; // Easy swipe: ~10% of screen width
@@ -195,6 +196,9 @@ export default function SwipeScreen() {
 
     const [feed, setFeed] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isFetchingMore, setIsFetchingMore] = useState(false);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
     const [geographyMode, setGeographyMode] = useState<string>('both');
     const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
@@ -203,6 +207,7 @@ export default function SwipeScreen() {
     const [hasCv, setHasCv] = useState<boolean>(false);
     const feedLoadedRef = useRef(false);
     const loadingRef = useRef(false);
+    const isFetchingRef = useRef(false);
 
     const openJobDetails = (job: any) => {
         setSelectedJob(job);
@@ -228,12 +233,13 @@ export default function SwipeScreen() {
                         setFeed(dedupedJobs);
                         setGeographyMode(parsed.geographyMode || 'both');
                         setLoading(false);
-                        loadFeed(true);
+                        // Start a silent refresh of page 1
+                        loadFeed(1, false, true);
                         return;
                     }
                 }
             } catch (_) { }
-            await loadFeed(false);
+            await loadFeed(1);
         })();
     }, []);
 
@@ -275,109 +281,136 @@ export default function SwipeScreen() {
     // reflected in the recommendations.
     useFocusEffect(
         React.useCallback(() => {
-            // Silent refresh so existing cards stay visible until new feed arrives
-            loadFeed(true);
+            // Silent refresh from page 1
+            loadFeed(1, false, true);
         }, [])
     );
 
-    const loadFeed = async (silent = false) => {
+    const loadFeed = async (targetPage = 1, append = false, silent = false) => {
         if (loadingRef.current) return;
+        
+        // Robust parallel request protection
+        if (append && isFetchingRef.current) return;
+
         loadingRef.current = true;
-        if (!silent) setLoading(true);
+        if (!silent && !append) setLoading(true);
+        if (append) {
+            setIsFetchingMore(true);
+            isFetchingRef.current = true;
+        }
+
         try {
             const headers = await getAuthHeaders();
 
-            // Check if user has uploaded CV (non-blocking)
-            fetch(`${API_URL}/users/me`, { headers }).then(async r => {
-                if (r.ok) {
-                    const profileData = await r.json();
-                    // has_cv is computed from cv_embedding presence ÔÇö cv_storage_path was removed
-                    setHasCv(!!profileData.has_cv);
-                }
-            }).catch(() => { });
+            if (targetPage === 1) {
+                fetch(`${API_URL}/users/me`, { headers }).then(async r => {
+                    if (r.ok) {
+                        const profileData = await r.json();
+                        setHasCv(!!profileData.has_cv);
+                    }
+                }).catch(() => { });
+            }
 
-            const response = await fetch(`${API_URL}/jobs/feed`, {
+            const response = await fetch(`${API_URL}/jobs/feed?page=${targetPage}&limit=${PAGE_SIZE}`, {
                 headers: { ...headers }
             });
 
             if (response.status === 401 || response.status === 403) {
-                // Do NOT redirect to welcome ÔÇö let the auth guard in (tabs)/_layout.tsx handle this.
-                // If the session truly expired, Clerk will notify isSignedIn=false and the guard redirects.
-                setFeed([]);
+                if (!append) {
+                    setFeed([]);
+                    setPage(1);
+                    setHasMore(true);
+                }
                 loadingRef.current = false;
                 setLoading(false);
+                setIsFetchingMore(false);
+                isFetchingRef.current = false;
                 return;
             }
 
             if (!response.ok) {
                 console.error("Failed to fetch jobs feed", response.status);
-                if (!silent) setFeed([]);
+                if (!silent && !append) {
+                    setFeed([]);
+                    setPage(1);
+                    setHasMore(true);
+                }
                 loadingRef.current = false;
                 setLoading(false);
+                setIsFetchingMore(false);
+                isFetchingRef.current = false;
                 return;
             }
 
             const data = await response.json();
-
             const rawJobs = Array.isArray(data.jobs) ? data.jobs : [];
             const geographyMode = data.geography_mode || 'both';
+            const totalReturned = data.total_returned || 0;
 
-            // Deduplicate by job ID to prevent React duplicate key warnings
-            const seenIds = new Set<string>();
-            const mappedJobs = rawJobs
-                .map((job: any) => {
-                    const matched = Array.isArray(job.matched_skills) ? job.matched_skills : [];
-                    const missing = Array.isArray(job.missing_skills) ? job.missing_skills : [];
-                    const combinedSkills = [
-                        ...matched.map((s: string) => ({ name: String(s), matched: true })),
-                        ...missing.map((s: string) => ({ name: String(s), matched: false }))
-                    ];
-                    const descRaw = job.description_text || job.description || '';
-                    const descriptionPreview = typeof descRaw === 'string' ? descRaw.slice(0, 3000) : '';
-                    const company = displayCompany(job.company);
-                    const locationDisplay = [job.city, job.country_code].filter(Boolean).join(', ') || (job.location != null ? String(job.location) : 'Unknown');
-                    return {
-                        id: job.id,
-                        company,
-                        location: locationDisplay,
-                        city: job.city,
-                        remote: !!job.is_remote,
-                        title: job.title != null ? String(job.title) : 'Job',
-                        description: descriptionPreview,
-                        descriptionFull: job.description_text || job.description || '',
-                        logoUrl: job.logo_url || job.company_logo_url || null,
-                        skills: combinedSkills,
-                        matchScore: typeof job.match_score === 'number' ? job.match_score : 0,
-                        type: job.type || job.job_type || 'full-time',
-                        url: job.apply_url || job.job_url || '',
-                        visa_badge: job.visa_badge,
-                        posted_at: job.posted_at || job.posted_at_iso || null,
-                    };
-                })
-                .filter((job: any) => {
-                    if (!job.id || seenIds.has(job.id)) return false;
-                    seenIds.add(job.id);
-                    return true;
-                });
+            const isExhausted = totalReturned < PAGE_SIZE || totalReturned === 0;
 
-            setFeed(mappedJobs);
+            const mappedJobs = rawJobs.map((job: any) => {
+                const matched = Array.isArray(job.matched_skills) ? job.matched_skills : [];
+                const missing = Array.isArray(job.missing_skills) ? job.missing_skills : [];
+                const combinedSkills = [
+                    ...matched.map((s: string) => ({ name: String(s), matched: true })),
+                    ...missing.map((s: string) => ({ name: String(s), matched: false }))
+                ];
+                const descRaw = job.description_text || job.description || '';
+                const descriptionPreview = typeof descRaw === 'string' ? descRaw.slice(0, 3000) : '';
+                const company = displayCompany(job.company);
+                const locationDisplay = [job.city, job.country_code].filter(Boolean).join(', ') || (job.location != null ? String(job.location) : 'Unknown');
+                return {
+                    id: job.id,
+                    company,
+                    location: locationDisplay,
+                    city: job.city,
+                    remote: !!job.is_remote,
+                    title: job.title != null ? String(job.title) : 'Job',
+                    description: descriptionPreview,
+                    descriptionFull: job.description_text || job.description || '',
+                    logoUrl: job.logo_url || job.company_logo_url || null,
+                    skills: combinedSkills,
+                    matchScore: typeof job.match_score === 'number' ? job.match_score : 0,
+                    type: job.type || job.job_type || 'full-time',
+                    url: job.apply_url || job.job_url || '',
+                    visa_badge: job.visa_badge,
+                    posted_at: job.posted_at || job.posted_at_iso || null,
+                };
+            });
+
+            // metadata state updated outside the feed setter
+            setPage(targetPage);
+            setHasMore(!isExhausted);
             setGeographyMode(geographyMode);
-            try {
-                await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({
-                    jobs: mappedJobs,
-                    geographyMode,
-                    timestamp: Date.now(),
-                }));
-            } catch (_) { }
+
+            // pure setFeed
+            setFeed(prev => {
+                const base = append ? prev : [];
+                const seen = new Set(base.map(j => j.id));
+                const next = [...base];
+                for (const job of mappedJobs) {
+                    if (!job.id || seen.has(job.id)) continue;
+                    seen.add(job.id);
+                    next.push(job);
+                }
+                return next;
+            });
+
+
         } catch (error) {
             console.error("Feed error:", error, "| API_URL:", `${API_URL}/jobs/feed`);
-            if (!silent) {
+            if (!silent && !append) {
                 setFeed([]);
                 setGeographyMode('both');
+                setPage(1);
+                setHasMore(true);
             }
         } finally {
             loadingRef.current = false;
             setLoading(false);
+            setIsFetchingMore(false);
+            isFetchingRef.current = false;
         }
     };
 
@@ -392,7 +425,8 @@ export default function SwipeScreen() {
             if (direction === 'right') {
                 saveJob(topJob);
             }
-            setFeed((prev) => prev.slice(1));
+            // handleSwipeEnd should only remove the swiped card
+            setFeed(prev => prev.slice(1));
             setSwipeDirection(null);
         }, 150);
 
@@ -417,12 +451,36 @@ export default function SwipeScreen() {
 
 
 
+    // Auto-pagination effect
+    useEffect(() => {
+        if (feed.length > 0 && feed.length <= 5 && hasMore && !isFetchingRef.current && !loading) {
+            loadFeed(page + 1, true, true);
+        }
+    }, [feed.length, hasMore, page, loading]);
+
+    // Cache persistence effect
+    useEffect(() => {
+        if (feed.length > 0) {
+            AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({
+                jobs: feed,
+                geographyMode,
+                timestamp: Date.now(),
+            })).catch(() => {});
+        }
+    }, [feed, geographyMode]);
+
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
             <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
             <Text style={styles.emptyTitle}>No more jobs today</Text>
             <Text style={styles.emptySubtitle}>You've caught up with all matches.</Text>
-            <Pressable style={styles.refreshButton} onPress={() => loadFeed(true)}>
+            <Pressable 
+                style={styles.refreshButton} 
+                onPress={() => {
+                    setHasMore(true);
+                    loadFeed(1, false, false);
+                }}
+            >
                 <Text style={styles.refreshButtonText}>Refresh</Text>
             </Pressable>
         </View>
@@ -448,7 +506,7 @@ export default function SwipeScreen() {
             <View style={styles.stackContainer}>
                 {loading ? (
                     <ActivityIndicator size="large" color={COLORS.accent} style={{ marginTop: 100 }} />
-                ) : feed.length === 0 ? (
+                ) : (feed.length === 0 && !hasMore && !isFetchingMore) ? (
                     renderEmptyState()
                 ) : (
                     <View style={styles.cardsWrapper}>
