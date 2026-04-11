@@ -105,7 +105,13 @@ export default function PreviewScreen() {
 
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/users/onboarding/complete`, {
+      const reqUrl = `${API_URL}/users/onboarding/complete`;
+      console.log('--- ONBOARDING SUBMIT DIAGNOSTIC ---');
+      console.log('API_URL resolved as:', API_URL);
+      console.log('Full Request URL:', reqUrl);
+      console.log('Auth Headers Generated:', !!headers && Object.keys(headers).length > 0);
+
+      const res = await fetch(reqUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,6 +123,7 @@ export default function PreviewScreen() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        console.log('Response not OK. Status:', res.status, 'Error data:', data);
         setError(data.detail || data.error || `Request failed (${res.status})`);
         setIsSubmitting(false);
         return;
@@ -126,6 +133,7 @@ export default function PreviewScreen() {
       await setOnboardingCompleteFlag();
       router.replace('/(tabs)/swipe');
     } catch (err) {
+      console.error('Caught fetch error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setIsSubmitting(false);
@@ -220,6 +228,12 @@ export default function PreviewScreen() {
         </Pressable>
         <OnboardingStepIndicator step={6} total={6} />
         <View style={styles.placeholder} />
+      </View>
+
+      <View style={{ backgroundColor: '#FEF3C7', padding: 8, marginHorizontal: 24, borderRadius: 8, marginBottom: 12 }}>
+        <Text style={{ fontFamily: 'Satoshi-Medium', fontSize: 12, color: '#92400E' }}>
+          DEBUG API_URL: {API_URL}
+        </Text>
       </View>
 
       <ScrollView
