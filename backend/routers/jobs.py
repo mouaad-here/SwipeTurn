@@ -229,6 +229,17 @@ def get_job_feed(
         end_idx = start_idx + limit
         paginated_jobs = strict_jobs[start_idx:end_idx]
 
+        ALLOWED_JOB_FIELDS = {
+            "id", "title", "company", "company_logo_url", "location", "city",
+            "country_code", "is_remote", "type", "job_type", "posted_at",
+            "status", "is_active", "match_score", "matched_skills",
+            "missing_skills", "description_text", "apply_url"
+        }
+
+        filtered_jobs = []
+        for j in paginated_jobs:
+            filtered_jobs.append({k: v for k, v in j.items() if k in ALLOWED_JOB_FIELDS})
+
         has_cv = bool(user.get("cv_embedding"))
         
         print(f"[feed] user_id={user_id} profile_quality={profile_quality} mode={'generic' if is_generic_feed else 'personalized'} stats={stats}")
@@ -236,11 +247,9 @@ def get_job_feed(
             "page": page,
             "limit": limit,
             "total_available": len(strict_jobs),
-            "total_returned": len(paginated_jobs),
+            "total_returned": len(filtered_jobs),
             "geography_mode": user_geography or "both",
-            "min_feed_score": MIN_FEED_SCORE,
-            "has_cv": has_cv,
-            "jobs": paginated_jobs,
+            "jobs": filtered_jobs,
         }
     except Exception as e:
         print(f"[feed] INTERNAL ERROR: {e}")
