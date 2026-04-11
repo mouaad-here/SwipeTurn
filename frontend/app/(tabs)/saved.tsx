@@ -1,4 +1,4 @@
-﻿import API_URL from '@/constants/api';
+import API_URL from '@/constants/api';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
 import { useAppStore } from '../../store/appStore';
@@ -39,7 +39,12 @@ interface SavedJob {
 function formatTimeAgo(savedAt: string | undefined): string {
     if (!savedAt) return '';
     try {
-        const d = new Date(savedAt);
+        // Ensure string is treated as UTC if it lacks a timezone indicator (+, -, or Z)
+        let dateStr = savedAt;
+        if (!dateStr.endsWith('Z') && !dateStr.includes('+') && !dateStr.match(/-\d{2}:\d{2}$/)) {
+            dateStr += 'Z';
+        }
+        const d = new Date(dateStr);
         const diffMs = Date.now() - d.getTime();
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);

@@ -70,9 +70,13 @@ export default function GeographyScreen() {
       <StatusBar style="dark" />
 
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Pressable onPress={() => router.replace('/')} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </Pressable>
+        {router.canGoBack() ? (
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          </Pressable>
+        ) : (
+          <View style={styles.backButton} />
+        )}
         <OnboardingStepIndicator step={1} total={6} />
         <View style={styles.placeholder} />
       </View>
