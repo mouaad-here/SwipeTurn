@@ -100,15 +100,15 @@ _FORM_HTML = """
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Delete Account — SwipTurn</title>
+  <title>Delete Account — SwipeTurn</title>
   {style}
 </head>
 <body>
   <div class="card">
-    <div class="logo">Swip<span>Turn</span></div>
+    <div class="logo">Swipe<span>Turn</span></div>
     <h1>Request Account Deletion</h1>
     <p>
-      Use this form to request permanent deletion of your SwipTurn account.
+      Use this form to request permanent deletion of your SwipeTurn account.
       You can also delete your account instantly from within the app:
       <strong>Profile → Delete Account</strong>.
       View our <a href="/privacy" style="color:#FF4422;">Privacy Policy</a>.
@@ -162,12 +162,12 @@ _SUCCESS_HTML = """
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deletion Request Received — SwipTurn</title>
+  <title>Deletion Request Received — SwipeTurn</title>
   {style}
 </head>
 <body>
   <div class="card">
-    <div class="logo">Swip<span>Turn</span></div>
+    <div class="logo">Swipe<span>Turn</span></div>
     <div class="success">
       <div class="icon">✅</div>
       <h2>Request Received</h2>
@@ -175,7 +175,7 @@ _SUCCESS_HTML = """
         Your request has been logged for <strong>{email}</strong>.<br/><br/>
         Your account and all associated data will be permanently deleted
         within <strong>30 days</strong>. If you need urgent assistance,
-        contact us at <a href="mailto:support@swipturn.com" style="color:#FF4422;">support@swipturn.com</a>.
+        contact us at <a href="mailto:support@swipeturn.com" style="color:#FF4422;">support@swipeturn.com</a>.
       </p>
     </div>
   </div>
@@ -224,7 +224,7 @@ async def deletion_request_submit(
             <title>Too Many Requests</title></head><body style='font-family:sans-serif;padding:40px;'>
             <h2>Too many requests</h2>
             <p>You've submitted too many deletion requests. Please wait an hour before trying again.
-            Or email us directly at <a href='mailto:support@swipturn.com'>support@swipturn.com</a>.</p>
+            Or email us directly at <a href='mailto:support@swipeturn.com'>support@swipeturn.com</a>.</p>
             </body></html>""",
             status_code=429,
         )
@@ -259,7 +259,7 @@ _PRIVACY_HTML = """
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Privacy Policy — SwipTurn</title>
+  <title>Privacy Policy — SwipeTurn</title>
   {style}
   <style>
     .card {{ max-width: 800px; padding: 60px; }}
@@ -276,7 +276,7 @@ _PRIVACY_HTML = """
     <p>Last Updated: April 6, 2026</p>
 
     <div class="content">
-      <p>At SwipTurn, we prioritize your privacy and are committed to protecting your personal data. This policy explains how we handle your information when you use our mobile application and services.</p>
+      <p>At SwipeTurn, we prioritize your privacy and are committed to protecting your personal data. This policy explains how we handle your information when you use our mobile application and services.</p>
 
       <h2>1. Information We Collect</h2>
       <ul>
@@ -286,7 +286,7 @@ _PRIVACY_HTML = """
       </ul>
 
       <h2>2. How We Use Information</h2>
-      <p>We use your data solely to provide and improve the SwipTurn job matching service, including:</p>
+      <p>We use your data solely to provide and improve the SwipeTurn job matching service, including:</p>
       <ul>
         <li>Personalizing your job feed.</li>
         <li>Generating match scores between your profile and job openings.</li>
@@ -305,11 +305,11 @@ _PRIVACY_HTML = """
       <p>We implement industry-standard security measures, including encryption in transit and at rest. We do not sell your personal data to third parties.</p>
 
       <h2>5. Contact Us</h2>
-      <p>If you have questions about this policy, contact us at <a href="mailto:support@swipturn.com" style="color:#FF4422;">support@swipturn.com</a>.</p>
+      <p>If you have questions about this policy, contact us at <a href="mailto:support@swipeturn.com" style="color:#FF4422;">support@swipeturn.com</a>.</p>
     </div>
 
     <div class="footer">
-      &copy; 2026 SwipTurn. All rights reserved.
+      &copy; 2026 SwipeTurn. All rights reserved.
     </div>
   </div>
 </body>

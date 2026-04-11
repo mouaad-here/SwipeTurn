@@ -1,7 +1,7 @@
 services:
   caddy:
     image: caddy:2-alpine
-    container_name: swipturn-proxy
+    container_name: swipeturn-proxy
     restart: unless-stopped
     depends_on:
       api:
@@ -11,16 +11,16 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - swipturn-caddy-data:/data
-      - swipturn-caddy-config:/config
+      - swipeturn-caddy-data:/data
+      - swipeturn-caddy-config:/config
     networks:
-      - swipturn-network
+      - swipeturn-network
 
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: swipturn-api
+    container_name: swipeturn-api
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -38,9 +38,9 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - swipturn-network
+      - swipeturn-network
     volumes:
-      - swipturn-hf-cache:/models/hf
+      - swipeturn-hf-cache:/models/hf
     environment:
       HF_HOME: /models/hf
 
@@ -48,7 +48,7 @@ services:
     build:
       context: ./pipeline
       dockerfile: Dockerfile
-    container_name: swipturn-pipeline
+    container_name: swipeturn-pipeline
     restart: unless-stopped
     env_file:
       - ./pipeline/.env
@@ -58,17 +58,17 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - swipturn-network
+      - swipeturn-network
     volumes:
-      - swipturn-hf-cache:/models/hf
+      - swipeturn-hf-cache:/models/hf
     environment:
       HF_HOME: /models/hf
 
 networks:
-  swipturn-network:
+  swipeturn-network:
     driver: bridge
 
 volumes:
-  swipturn-caddy-data:
-  swipturn-caddy-config:
-  swipturn-hf-cache:
+  swipeturn-caddy-data:
+  swipeturn-caddy-config:
+  swipeturn-hf-cache:

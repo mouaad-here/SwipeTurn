@@ -187,8 +187,8 @@ def process_job(title: str, description: str, *, is_domestic: bool = False) -> t
                     temperature=0,
                     messages=[{"role": "user", "content": prompt_text}],
                     extra_headers={
-                        "HTTP-Referer": "https://swipturn.app",
-                        "X-Title": "SwipTurn Job Processor",
+                        "HTTP-Referer": "https://swipeturn.com",
+                        "X-Title": "SwipeTurn Job Processor",
                     },
                 )
                 raw = response.choices[0].message.content.strip()
