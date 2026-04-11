@@ -1,9 +1,12 @@
-import { COLORS } from '@/constants/colors';
-import { useAuth, useOAuth, useSignUp } from '@clerk/clerk-expo';
+﻿import { COLORS } from '@/constants/colors';
+import Splash from '@/components/Splash';
+import { useAuth, useSSO, useSignUp } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import { useBootState } from '@/hooks/useBootState';
+import API_URL from '@/constants/api';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
@@ -19,9 +22,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Required to process OAuth deep-links properly on Android and clear stale browser sessions
-WebBrowser.maybeCompleteAuthSession();
-
+// Required for Android: warm up the browser so OAuth completes properly.
 function useWarmUpBrowser() {
     useEffect(() => {
         if (Platform.OS !== 'web') {
@@ -36,21 +37,22 @@ export default function SignupScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isLoaded, signUp, setActive } = useSignUp();
-    const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+    const { startSSOFlow } = useSSO();
     const { isSignedIn } = useAuth();
 
-    // One-time guard only — do NOT watch isSignedIn changes (races with OAuth handler)
+    const { setOnboardingCompleteFlag } = useBootState();
+    const { getToken } = useAuth();
+
+    useEffect(() => {
+
+    }, []);
+
+    // One-time guard: if user is ALREADY signed in when this screen mounts, route away.
+    // We send them to '/' so index.tsx can decide where they belong (swipe vs onboarding).
     useEffect(() => {
         if (!isLoaded || !isSignedIn) return;
-        (async () => {
-            try {
-                const cached = await AsyncStorage.getItem('swipturn:onboarding_done');
-                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/welcome');
-            } catch {
-                router.replace('/welcome');
-            }
-        })();
-    }, [isLoaded]); // intentionally omit isSignedIn
+        router.replace('/');
+    }, [isLoaded, isSignedIn]);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -58,6 +60,7 @@ export default function SignupScreen() {
     const [lastName, setLastName] = useState('');
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [oauthLoading, setOauthLoading] = useState(false);
     const [error, setError] = useState('');
     const [verificationPending, setVerificationPending] = useState(false);
     const [verificationCode, setVerificationCode] = useState('');
@@ -83,7 +86,27 @@ export default function SignupScreen() {
 
             if (signUp.status === 'complete' && signUp.createdSessionId) {
                 await setActive({ session: signUp.createdSessionId });
-                router.replace('/(onboarding)/geography');
+                
+                try {
+                    const guestId = await AsyncStorage.getItem('guestId');
+                    if (guestId) {
+                        const token = await getToken();
+                        await fetch(`${API_URL}/users/merge-guest`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({ guest_id: guestId, auth_type: 'signup' }),
+                        });
+                        await AsyncStorage.removeItem('guestId');
+                    }
+                } catch (e) {
+                    console.log('Error merging guest on signup:', e);
+                }
+
+                await setOnboardingCompleteFlag();
+                router.replace('/');
                 return;
             }
 
@@ -110,7 +133,27 @@ export default function SignupScreen() {
             const attempt = await signUp.attemptEmailAddressVerification({ code: verificationCode.trim() });
             if (attempt.status === 'complete' && attempt.createdSessionId) {
                 await setActive({ session: attempt.createdSessionId });
-                router.replace('/(onboarding)/geography');
+                
+                try {
+                    const guestId = await AsyncStorage.getItem('guestId');
+                    if (guestId) {
+                        const token = await getToken();
+                        await fetch(`${API_URL}/users/merge-guest`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({ guest_id: guestId, auth_type: 'signup' }),
+                        });
+                        await AsyncStorage.removeItem('guestId');
+                    }
+                } catch (e) {
+                    console.log('Error merging guest on verify:', e);
+                }
+
+                await setOnboardingCompleteFlag();
+                router.replace('/');
             } else {
                 setError('Verification failed. Please check the code and try again.');
             }
@@ -123,19 +166,33 @@ export default function SignupScreen() {
     };
 
     const handleGoogleLogin = useCallback(async () => {
+        setOauthLoading(true);
         try {
-            const { createdSessionId, setActive: setOAuthActive } = await startOAuthFlow({
-                redirectUrl: Linking.createURL('/', { scheme: 'swipeturn' })
+            const { createdSessionId, setActive: setOAuthActive } = await startSSOFlow({
+                strategy: 'oauth_google',
+                redirectUrl: Linking.createURL('/oauth-native-callback', { scheme: 'swipeturn' })
             });
 
+            // Runs on iOS (app stays alive). On Android the app restarts ÔÇö
+            // the useEffect above handles routing once Clerk hydrates.
             if (createdSessionId && setOAuthActive) {
                 await setOAuthActive({ session: createdSessionId });
-                router.replace('/(onboarding)/geography');
+                // We rely entirely on the oauth-native-callback.tsx deep link intercept 
+                // to gracefully show the spinner and route safely.
+            } else {
+                // If no session yet (Android restart pending), keep loading=true
+                // so the Splash stays visible until the app restarts/hydrates.
             }
         } catch (err) {
-            console.error("OAuth error", err);
+            console.error('OAuth error', err);
+            setOauthLoading(false);
         }
-    }, [startOAuthFlow, router]);
+    }, [startSSOFlow, router]);
+
+    // We NO LONGER show full-screen splash during OAuth start, to make the app feel faster.
+    if (!isLoaded || isSignedIn) {
+        return null;
+    }
 
     return (
         <KeyboardAvoidingView
@@ -272,9 +329,19 @@ export default function SignupScreen() {
                             <View style={styles.dividerLine} />
                         </View>
 
-                        <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
-                            <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
-                            <Text style={styles.googleButtonText}>Continue with Google</Text>
+                        <Pressable 
+                            style={[styles.googleButton, oauthLoading && styles.googleButtonDisabled]} 
+                            onPress={handleGoogleLogin}
+                            disabled={oauthLoading || loading}
+                        >
+                            {oauthLoading ? (
+                                <ActivityIndicator color={COLORS.textPrimary} />
+                            ) : (
+                                <>
+                                    <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
+                                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                                </>
+                            )}
                         </Pressable>
                     </View>
                 )}
@@ -305,7 +372,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     heading: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 32,
         color: COLORS.textPrimary,
         marginTop: 28,
@@ -317,7 +384,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     label: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 14,
         color: COLORS.textSecondary,
         marginBottom: 10,
@@ -340,7 +407,7 @@ const styles = StyleSheet.create({
         padding: 16,
         color: COLORS.textPrimary,
         fontSize: 15,
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
     },
     eyeIcon: {
         padding: 16,
@@ -351,13 +418,13 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     errorText: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         color: COLORS.accent,
         fontSize: 13,
         marginTop: 8,
     },
     verifyPrompt: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 15,
         color: COLORS.textSecondary,
         marginBottom: 8,
@@ -368,7 +435,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
     },
     secondaryButtonText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 15,
         color: COLORS.textMuted,
     },
@@ -390,7 +457,7 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'Satoshi-Bold',
+        fontFamily: 'Satoshi', fontWeight: '700',
         fontSize: 18,
         letterSpacing: 0.5,
         color: 'white',
@@ -406,7 +473,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.border,
     },
     dividerText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 13,
         color: COLORS.textMeta,
         marginHorizontal: 16,
@@ -431,9 +498,12 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     googleButtonText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 16,
         color: COLORS.textPrimary,
+    },
+    googleButtonDisabled: {
+        opacity: 0.7,
     },
     termsContainer: {
         paddingTop: 16,
@@ -441,7 +511,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     termsText: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 12,
         color: COLORS.textMeta,
         textAlign: 'center',

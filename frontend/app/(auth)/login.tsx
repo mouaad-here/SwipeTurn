@@ -1,9 +1,12 @@
-import { COLORS } from '@/constants/colors';
-import { useAuth, useOAuth, useSignIn } from '@clerk/clerk-expo';
+﻿import { COLORS } from '@/constants/colors';
+import Splash from '@/components/Splash';
+import { useAuth, useSSO, useSignIn } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import { useBootState } from '@/hooks/useBootState';
+import API_URL from '@/constants/api';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
@@ -20,11 +23,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Required to process OAuth deep-links properly on Android and clear stale browser sessions
-WebBrowser.maybeCompleteAuthSession();
-
-// Critical for Android: warm up the browser so OAuth completes properly
-// and Clerk can process the callback when the app restarts.
+// Required for Android: warm up the browser so OAuth completes properly.
 function useWarmUpBrowser() {
     useEffect(() => {
         if (Platform.OS !== 'web') {
@@ -39,28 +38,28 @@ export default function LoginScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { signIn, setActive, isLoaded } = useSignIn();
-    const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+    const { startSSOFlow } = useSSO();
     const { isSignedIn } = useAuth();
 
-    // One-time guard: if user is ALREADY signed in when this screen mounts, route away.
-    // Must NOT watch isSignedIn changes — that re-fires during OAuth and races the handler.
+    const { setOnboardingCompleteFlag } = useBootState();
+    const { getToken } = useAuth();
+
     useEffect(() => {
-        if (!isLoaded) return;
-        if (!isSignedIn) return;
-        (async () => {
-            try {
-                const cached = await AsyncStorage.getItem('swipturn:onboarding_done');
-                router.replace(cached === 'true' ? '/(tabs)/swipe' : '/welcome');
-            } catch {
-                router.replace('/welcome');
-            }
-        })();
-    }, [isLoaded]); // intentionally omit isSignedIn — see comment above
+
+    }, []);
+
+    // One-time guard: if user is ALREADY signed in when this screen mounts, route away.
+    // We send them to '/' so index.tsx can decide where they belong (swipe vs onboarding).
+    useEffect(() => {
+        if (!isLoaded || !isSignedIn) return;
+        router.replace('/');
+    }, [isLoaded, isSignedIn]);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [oauthLoading, setOauthLoading] = useState(false);
     const [error, setError] = useState('');
 
     const handleLogin = async () => {
@@ -82,8 +81,27 @@ export default function LoginScreen() {
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId });
-                try { await AsyncStorage.setItem('swipturn:onboarding_done', 'true'); } catch (_) { }
-                router.replace('/(tabs)/swipe');
+                
+                try {
+                    const guestId = await AsyncStorage.getItem('guestId');
+                    if (guestId) {
+                        const token = await getToken();
+                        await fetch(`${API_URL}/users/merge-guest`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({ guest_id: guestId, auth_type: 'login' }),
+                        });
+                        await AsyncStorage.removeItem('guestId');
+                    }
+                } catch (e) {
+                    console.log('Error merging guest on login:', e);
+                }
+
+                await setOnboardingCompleteFlag();
+                router.replace('/');
             } else {
                 const statusMessages: Record<string, string> = {
                     needs_identifier: 'Please enter your email address.',
@@ -103,28 +121,30 @@ export default function LoginScreen() {
     };
 
     const handleGoogleLogin = useCallback(async () => {
+        setOauthLoading(true);
+        setError('');
         try {
-            // Use root URL so index.tsx handles routing after Clerk processes the callback.
-            // On Android, the app restarts after OAuth — the old `/(tabs)/swipe` URL
-            // bypassed Clerk's callback processing.
-            const { createdSessionId, setActive: setOAuthActive } = await startOAuthFlow({
-                redirectUrl: Linking.createURL('/', { scheme: 'swipeturn' })
+            const { createdSessionId, setActive: setOAuthActive } = await startSSOFlow({
+                strategy: 'oauth_google',
+                redirectUrl: Linking.createURL('/oauth-native-callback', { scheme: 'swipeturn' })
             });
 
-            // This block only runs if the app stayed alive (iOS usually).
-            // On Android (app killed + restarted), the Promise is lost and
-            // Clerk auto-hydrates the session — index.tsx handles the redirect.
             if (createdSessionId && setOAuthActive) {
                 await setOAuthActive({ session: createdSessionId });
-                try { await AsyncStorage.setItem('swipturn:onboarding_done', 'true'); } catch (_) { }
-                router.replace('/(tabs)/swipe');
+                // Note: The deep-linked oauth-native-callback screen will organically 
+                // handle the UX loading phase and fire the final redirect for us.
             }
         } catch (err: any) {
-            console.error("OAuth error", JSON.stringify(err, null, 2) || err);
-            const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || JSON.stringify(err);
+            setOauthLoading(false);
+            const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || "Unknown error";
             setError(`Google Login failed: ${msg}`);
         }
-    }, [startOAuthFlow, router]);
+    }, [startSSOFlow, router]);
+
+    // We NO LONGER show full-screen splash during OAuth start, to make the app feel faster.
+    if (!isLoaded || isSignedIn) {
+        return null;
+    }
 
     return (
         <KeyboardAvoidingView
@@ -199,15 +219,25 @@ export default function LoginScreen() {
                             <View style={styles.dividerLine} />
                         </View>
 
-                        <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
-                            <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
-                            <Text style={styles.googleButtonText}>Continue with Google</Text>
+                        <Pressable 
+                            style={[styles.googleButton, oauthLoading && styles.googleButtonDisabled]} 
+                            onPress={handleGoogleLogin}
+                            disabled={oauthLoading || loading}
+                        >
+                            {oauthLoading ? (
+                                <ActivityIndicator color={COLORS.textPrimary} />
+                            ) : (
+                                <>
+                                    <Ionicons name="logo-google" size={18} color={COLORS.textPrimary} style={styles.googleIcon} />
+                                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                                </>
+                            )}
                         </Pressable>
                     </View>
 
                     <View style={styles.signupRow}>
                         <Text style={styles.signupPrefix}>Don't have an account? </Text>
-                        <Pressable onPress={() => router.push('/(auth)/signup')}>
+                        <Pressable onPress={() => router.replace('/(auth)/signup')}>
                             <Text style={styles.signupLink}>Sign up</Text>
                         </Pressable>
                     </View>
@@ -233,7 +263,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     heading: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay', fontWeight: '700',
         fontSize: 32,
         color: COLORS.textPrimary,
         marginTop: 28,
@@ -245,7 +275,7 @@ const styles = StyleSheet.create({
         gap: 0,
     },
     label: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 14,
         color: COLORS.textSecondary,
         marginBottom: 10,
@@ -268,7 +298,7 @@ const styles = StyleSheet.create({
         padding: 18,
         color: COLORS.textPrimary,
         fontSize: 15,
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
     },
     eyeIcon: {
         minWidth: 48,
@@ -278,8 +308,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     errorText: {
-        fontFamily: 'Satoshi-Regular',
-        color: 'COLORS.accent',
+        fontFamily: 'Satoshi', fontWeight: '400',
+        color: COLORS.accent,
         fontSize: 13,
         marginTop: 8,
     },
@@ -301,7 +331,7 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'Satoshi-Bold',
+        fontFamily: 'Satoshi', fontWeight: '700',
         fontSize: 18,
         letterSpacing: 0.5,
         color: 'white',
@@ -314,12 +344,12 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: 'COLORS.border',
+        backgroundColor: COLORS.border,
     },
     dividerText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 13,
-        color: 'COLORS.textMeta',
+        color: COLORS.textMeta,
         marginHorizontal: 16,
     },
     googleButton: {
@@ -342,9 +372,12 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     googleButtonText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 16,
         color: COLORS.textPrimary,
+    },
+    googleButtonDisabled: {
+        opacity: 0.7,
     },
     signupRow: {
         flexDirection: 'row',
@@ -354,14 +387,14 @@ const styles = StyleSheet.create({
         paddingBottom: 64,
     },
     signupPrefix: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 14,
-        color: 'COLORS.textMuted',
+        color: COLORS.textMuted,
     },
     signupLink: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 14,
-        color: 'COLORS.textPrimary',
+        color: COLORS.textPrimary,
         textDecorationLine: 'underline',
     },
 });

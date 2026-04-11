@@ -1,29 +1,62 @@
-import { COLORS, COLORS_ALPHA } from '@/constants/colors';
-import { useRouter } from 'expo-router';
+﻿import { COLORS, COLORS_ALPHA } from '@/constants/colors';
+import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
+import Animated, {
+    useSharedValue,
+    withTiming,
+    useAnimatedStyle,
+    Easing,
+} from 'react-native-reanimated';
+import Splash from '@/components/Splash';
+import { useBootState } from '@/hooks/useBootState';
 
 export default function WelcomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { bootLoading, gateLoading, isSignedIn, effectiveOnboardingDone, setGuestOnboardingStartedFlag, reportScreenPainted } = useBootState();
+
+    const opacity = useSharedValue(0);
+    const translateY = useSharedValue(20);
+
+    useEffect(() => {
+        opacity.value = withTiming(1, { duration: 800 });
+        translateY.value = withTiming(0, { duration: 800, easing: Easing.out(Easing.back(1)) });
+    }, []);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ translateY: translateY.value }],
+    }));
+
+    if (bootLoading || gateLoading) {
+        return <Splash minimal text="Loading..." />;
+    }
+
+    // Strict Layout Guard equivalent for this lone root screen
+    // Auto-redirect only for signed-in users so guests remain exactly where they intend to be
+    if (isSignedIn) {
+        return <Redirect href={effectiveOnboardingDone ? '/(tabs)/swipe' : '/(onboarding)/geography'} />;
+    }
 
     return (
-        <View style={styles.container}>
+        <View style={styles.container} onLayout={reportScreenPainted}>
             <StatusBar style="dark" />
 
-            {/* Top area */}
-            <View style={styles.topArea}>
-                <View style={styles.circleLarge} />
-                <View style={styles.circleSmall} />
+            {/* Decorative circles */}
+            <Animated.View style={[styles.circleLarge, { opacity: 0.35 }]} />
+            <Animated.View style={[styles.circleSmall, { opacity: 0.25 }]} />
 
+            {/* Top area */}
+            <Animated.View style={[styles.topArea, animatedStyle]}>
                 <View style={styles.logoRow}>
                     <Text style={styles.logoPrefix}>Swipe</Text>
                     <Text style={styles.logoSuffix}>Turn</Text>
                 </View>
-
                 <Text style={styles.tagline}>Swipe. Turn your career around.</Text>
-            </View>
+            </Animated.View>
 
             {/* Bottom area */}
             <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
@@ -36,7 +69,10 @@ export default function WelcomeScreen() {
 
                 <Pressable
                     style={styles.continueWithoutButton}
-                    onPress={() => router.replace('/(onboarding)/geography')}
+                    onPress={async () => {
+                        await setGuestOnboardingStartedFlag();
+                        router.push('/(onboarding)/geography');
+                    }}
                 >
                     <Text style={styles.continueWithoutText}>Continue without account</Text>
                 </Pressable>
@@ -86,19 +122,19 @@ const styles = StyleSheet.create({
         alignItems: 'baseline',
     },
     logoPrefix: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay',
         fontSize: 48,
         letterSpacing: -1,
         color: COLORS.textPrimary,
     },
     logoSuffix: {
-        fontFamily: 'ClashDisplay-Bold',
+        fontFamily: 'ClashDisplay',
         fontSize: 48,
         letterSpacing: -1,
         color: COLORS.accent,
     },
     tagline: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 18,
         color: COLORS.textSecondary,
         marginTop: 16,
@@ -123,7 +159,7 @@ const styles = StyleSheet.create({
         elevation: 8,
     },
     getStartedText: {
-        fontFamily: 'Satoshi-Bold',
+        fontFamily: 'Satoshi', fontWeight: '700',
         fontSize: 18,
         letterSpacing: 0.5,
         color: 'white',
@@ -145,7 +181,7 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     continueWithoutText: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 16,
         color: COLORS.textSecondary,
     },
@@ -155,12 +191,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loginPrefix: {
-        fontFamily: 'Satoshi-Regular',
+        fontFamily: 'Satoshi', fontWeight: '400',
         fontSize: 14,
         color: COLORS.textMuted,
     },
     loginLink: {
-        fontFamily: 'Satoshi-Medium',
+        fontFamily: 'Satoshi', fontWeight: '500',
         fontSize: 14,
         color: COLORS.accent,
     },
