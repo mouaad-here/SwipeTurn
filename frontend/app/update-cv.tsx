@@ -1,11 +1,11 @@
 /**
- * update-cv.tsx ÔÇö Standalone CV upload modal (not part of onboarding flow)
+ * update-cv.tsx  Standalone CV upload modal (not part of onboarding flow)
  * Opened from Profile > My Resume > Update CV / Add CV
  * After upload completes, simply goes back to profile.
  */
-import API_URL from '@/constants/api';
+import { API_URL } from '@/constants/api';
 import { COLORS } from '@/constants/colors';
-import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -90,7 +90,7 @@ export default function UpdateCvScreen() {
             // Invalidate swipe feed cache so recommendations reload with new CV signal
             try {
                 await AsyncStorage.removeItem(FEED_CACHE_KEY);
-            } catch {}
+            } catch { }
             setUploaded(true);
         } catch (err: any) {
             setError(err?.message || 'Something went wrong. Please try again.');
