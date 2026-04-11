@@ -10,15 +10,21 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from processor import process_jobs, deactivate_expired
 
+# --- Launch-safe source list (Morocco-first MVP) —- keep in sync with scheduler.py ---
 SOURCES = [
-    "remotive",
-    "weworkremotely",
-    # "adzuna",
-    # "greenhouse",
-    # "lever",
-    # "jsearch",
-    "rekrute",
-    "stagiaires"
+    # --- Morocco local ---
+    "rekrute",          # #1 Moroccan job board
+    "stagiaires",       # #1 Moroccan internship / entry-level board
+    # --- International / Remote (curated, low noise) ---
+    "remotive",         # High-quality curated tech remote
+    "weworkremotely",   # High-quality curated tech remote
+    "remoteok",         # Tech remote board
+    "jsearch",          # LinkedIn / Indeed / Glassdoor via RapidAPI
+    # --- Disabled for launch (high volume / global ATS noise) ---
+    # "greenhouse",     # POST-LAUNCH: high ATS volume, needs filtering
+    # "lever",          # POST-LAUNCH: high ATS volume, needs filtering
+    # "adzuna",         # POST-LAUNCH: global volume, not Morocco-relevant yet
+    # "jobicy",         # POST-LAUNCH: may hit Cloudflare; re-enable after testing
 ]
 
 def run_pipeline():
