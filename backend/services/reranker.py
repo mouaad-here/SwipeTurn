@@ -1,3 +1,16 @@
+"""
+Multilingual cross-encoder reranker.
+
+Model: unicamp-dl/mMiniLM-L6-v2-mmarco-v2
+  - 6-layer mMiniLM (Distilled)
+  - Multilingual: trained on mMARCO (MS MARCO translated to 13 languages)
+  - Ideal for mixed English/French job contexts common in the SwipeTurn market.
+  - Output: raw logit (higher = more relevant)
+
+Pre-warming:
+  Call reranker.warmup() at server startup to download and cache weights before
+  the first live request hits.
+"""
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -5,8 +18,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Production model: ms-marco-MiniLM-L-6-v2 (English-centric)
-RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# Production model: multilingual L6 reranker for mixed English/French job text
+RERANKER_MODEL = "unicamp-dl/mMiniLM-L6-v2-mmarco-v2"
 
 # Reduce top-K to keep latency <2s on CPU at inference time
 RERANK_TOP_K = 15

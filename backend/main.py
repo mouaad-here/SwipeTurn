@@ -15,12 +15,14 @@ from routers import users, jobs, swipes, public
 
 
 def _preload_models():
-    """Load embedding model in the background so first requests are fast."""
+    """Load embedding and reranker models in the background so first requests are fast."""
     try:
         from services.embeddings import get_embedding_model
+        from services.reranker import warmup
         get_embedding_model()
+        warmup()
     except Exception as e:
-        print(f"Preload embedding model (non-blocking): {e}")
+        print(f"Preload embedding/reranker models (non-blocking): {e}")
 
 
 @asynccontextmanager
