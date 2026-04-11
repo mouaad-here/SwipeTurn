@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers import users, jobs, swipes
+from routers import users, jobs, swipes, public
 
 
 def _preload_models():
@@ -34,7 +34,7 @@ app = FastAPI(title="SwipeTurn API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,6 +52,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(users.router)
 app.include_router(jobs.router)
 app.include_router(swipes.router)
+app.include_router(public.router)  # Public pages (no auth) — delete-request form
 
 @app.get("/health")
 def health_check():

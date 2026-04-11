@@ -1,9 +1,10 @@
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import List, Optional
 
 from dependencies import get_supabase, get_current_user
-from services.matching import calculate_match_score, calculate_hybrid_score, get_skill_breakdown, cosine_similarity
+from services.matching import score_job_for_user, get_dedup_key, assess_profile_quality
 from services.embeddings import build_user_profile_text_from_user, get_embedding_model
 from constants import (
     get_seniority_filter,
@@ -13,17 +14,7 @@ from constants import (
 )
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
-
-
-def _safe_posted_at_ts(job: dict) -> float:
-    raw = job.get("posted_at")
-    if not raw:
-        return 0.0
-    try:
-        s = str(raw).replace("Z", "+00:00")
-        return datetime.fromisoformat(s).timestamp()
-    except Exception:
-        return 0.0
+JOB_MAX_AGE_DAYS = int(os.getenv("JOB_MAX_AGE_DAYS", "14"))
 
 
 @router.get("/feed")
@@ -49,11 +40,13 @@ def get_job_feed(
         swiped_ids = set(s["job_id"] for s in swipes_res.data)
 
         # 2. Build query with filters
+        min_posted_at = (datetime.utcnow() - timedelta(days=JOB_MAX_AGE_DAYS)).isoformat()
         query = (
             get_supabase()
             .table("jobs")
             .select("*")
             .eq("is_active", True)
+            .gte("posted_at", min_posted_at)
             .not_.is_("apply_url", "null")
         )
 
@@ -62,19 +55,29 @@ def get_job_feed(
         eligibility = build_eligibility_filter(user)
 
         if "or" in eligibility:
-            query = query.or_("job_region.eq.MA,globally_accessible.eq.true")
+            # DISCOVERY MODE: Allow NULL for globally_accessible because most job postings 
+            # do not explicitly confirm international eligibility. We only exclude 
+            # if excludes_morocco was explicitly set to True by the LLM.
+            query = query.or_("job_region.eq.MA,globally_accessible.eq.true,globally_accessible.is.null")
         elif "job_region" in eligibility:
             query = query.eq("job_region", eligibility["job_region"])
         else:
+            # International candidates: Allow NULL for both fields to avoid an empty feed.
             if eligibility.get("globally_accessible"):
-                query = query.eq("globally_accessible", True)
+                query = query.or_("globally_accessible.eq.true,globally_accessible.is.null")
             if eligibility.get("open_to_intl"):
-                query = query.eq("open_to_intl", True)
+                query = query.or_("open_to_intl.eq.true,open_to_intl.is.null")
             if eligibility.get("remote_type"):
                 query = query.eq("remote_type", eligibility["remote_type"])
 
-        # Seniority: strict hard filter
-        user_seniority = (user.get("experience_level") or prefs.get("seniority") or "mid").lower().strip()
+        # Seniority: strict hard filter.
+        # Source of truth = preferences.seniority (user's explicit onboarding choice).
+        # user.experience_level is CV-parsed metadata only — never used for feed filtering.
+        # Default = 'mid' (product default, not derived from CV).
+        onboarding_seniority = (prefs.get("seniority") or "").lower().strip()
+        user_seniority = onboarding_seniority if onboarding_seniority else "mid"
+        
+        cv_parsed_seniority = (user.get("parsed_experience_level") or "").lower().strip()
         allowed_levels = get_seniority_filter(user_seniority)
         if allowed_levels:
             query = query.or_(
@@ -147,39 +150,86 @@ def get_job_feed(
                 if profile_text:
                     model = get_embedding_model()
                     user_embedding = model.encode(profile_text).tolist()
+<<<<<<< HEAD
+=======
+                    try:
+                        get_supabase().table("users").update({"cv_embedding": user_embedding}).eq("id", user_id).execute()
+                    except Exception as e:
+                        print(f"[feed] Error saving lazy CV embedding: {e}")
+>>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
         except Exception:
             user_embedding = None
 
         # 6. Score
         scored_jobs = []
         for job in candidate_jobs:
-            keyword_score = calculate_match_score(job, user)
-            breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
-
-            if user_embedding is not None and job.get("description_embedding") is not None:
-                semantic_sim = cosine_similarity(user_embedding, job.get("description_embedding"))
-            else:
-                semantic_sim = 0.0
-
-            final_score = calculate_hybrid_score(keyword_score, semantic_sim)
-            job["match_score"] = final_score
-            job["matched_skills"] = breakdown["matched"]
-            job["missing_skills"] = breakdown["missing"]
+            scores = score_job_for_user(job, user, is_generic_feed=is_generic_feed)
+            job.update(scores)
+            job["match_score"] = scores["fit_score"]
             scored_jobs.append(job)
 
         # 7. Filter and sort
-        strict_jobs = [j for j in scored_jobs if float(j.get("match_score") or 0) >= MIN_FEED_SCORE]
-        print(f"[feed] scored_jobs={len(scored_jobs)}, strict_jobs_after_min_score={len(strict_jobs)}, MIN_FEED_SCORE={MIN_FEED_SCORE}")
+        if is_generic_feed:
+            strict_jobs = scored_jobs
+        else:
+            strict_jobs = [j for j in scored_jobs if float(j.get("fit_score") or 0) >= MIN_FEED_SCORE]
+            
+        stats["scored"] = len(scored_jobs)
+        stats["after_min_score"] = len(strict_jobs)
+        
+        for j in strict_jobs:
+            j["final_sort_score"] = j["rank_score"]
+        
         strict_jobs.sort(
-            key=lambda x: (float(x.get("match_score") or 0.0), _safe_posted_at_ts(x)),
+            key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""),
             reverse=True,
         )
 
+        # Apply Multilingual Top-K Reranking (Phase 9)
+        from services.reranker import rerank_pairs, RERANK_TOP_K
+        
+        if not is_generic_feed and len(strict_jobs) > 0:
+            user_text_for_rerank = build_user_profile_text_from_user(user)
+            if user_text_for_rerank:
+                user_snippet = user_text_for_rerank[:1000]  # truncate to stay < 512 tokens
+                top_finalists = strict_jobs[:RERANK_TOP_K]
+                pairs = []
+                for j in top_finalists:
+                    job_desc = (j.get("description_text") or "")[:800]
+                    job_title = j.get("title") or ""
+                    pairs.append((user_snippet, f"{job_title}. {job_desc}"))
+                
+                # 4s timeout; L6 model does 15 pairs in ~1-2s on CPU
+                result = rerank_pairs(pairs, timeout_seconds=4.0)
+                if result is not None:
+                    rerank_scores, rerank_latency_ms = result
+                    if len(rerank_scores) == len(top_finalists):
+                        for j, score in zip(top_finalists, rerank_scores):
+                            j["reranker_score"] = score
+                            j["final_sort_score"] = float(j.get("rank_score", 0)) + float(score) * 2.5
+                        
+                        top_finalists.sort(
+                            key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""), 
+                            reverse=True
+                        )
+                        strict_jobs[:RERANK_TOP_K] = top_finalists
+                        stats["reranked"] = len(top_finalists)
+                        stats["reranker_latency_ms"] = round(rerank_latency_ms, 1)
+                else:
+                    stats["reranked"] = 0
+                    stats["reranker_latency_ms"] = "timeout"
         start_idx = (page - 1) * limit
         end_idx = start_idx + limit
         paginated_jobs = strict_jobs[start_idx:end_idx]
 
+<<<<<<< HEAD
         has_cv = bool(user.get("cv_storage_path"))
+=======
+        has_cv = bool(user.get("cv_embedding"))
+        
+        print(f"[feed] user_id={user_id} profile_quality={profile_quality} mode={'generic' if is_generic_feed else 'personalized'} stats={stats}")
+        
+>>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
         return {
             "page": page,
             "limit": limit,
@@ -217,11 +267,13 @@ def search_jobs(
     swiped_ids = {s["job_id"] for s in swipes_res.data}
 
     SEARCH_FETCH_LIMIT = 500
+    min_posted_at = (datetime.utcnow() - timedelta(days=JOB_MAX_AGE_DAYS)).isoformat()
     query_db = (
         get_supabase()
         .table("jobs")
         .select("*")
         .eq("is_active", True)
+        .gte("posted_at", min_posted_at)
         .not_.is_("apply_url", "null")
         .limit(SEARCH_FETCH_LIMIT)
         .order("posted_at", desc=True)
@@ -254,24 +306,9 @@ def search_jobs(
 
     candidates = [j for j in candidates if _is_relevant(j)]
 
-    EXACT_BONUS = 18.0
-
-    def _exact_bonus(job: dict) -> float:
-        if not exact_priority:
-            return 0.0
-        title = (job.get("title") or "").lower()
-        skills = [s.lower() for s in (job.get("required_skills") or [])]
-        desc = (job.get("description_text") or "")[:1000].lower()
-        bonus = 0.0
-        for token in query_tokens:
-            if token in title or any(token in s for s in skills):
-                bonus += EXACT_BONUS
-            elif token in desc:
-                bonus += EXACT_BONUS * 0.4
-        return min(bonus, EXACT_BONUS * len(query_tokens))
-
     scored = []
     for job in candidates:
+<<<<<<< HEAD
         base_score = calculate_match_score(job, user)
         job["match_score"] = round(min(100.0, base_score + _exact_bonus(job)), 1)
         breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
@@ -280,6 +317,15 @@ def search_jobs(
         scored.append(job)
 
     scored.sort(key=lambda x: float(x.get("match_score") or 0), reverse=True)
+=======
+        scores = score_job_for_user(job, user, query_tokens=query_tokens, exact_priority=exact_priority)
+        job.update(scores)
+        job["match_score"] = scores["fit_score"]
+        job["final_sort_score"] = float(scores["rank_score"]) + float(scores["search_boost"])
+        scored.append(job)
+
+    scored.sort(key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""), reverse=True)
+>>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
     start = (page - 1) * limit
     paginated = scored[start:start + limit]
 
@@ -304,10 +350,9 @@ def get_single_job(job_id: str, user: dict = Depends(get_current_user)):
     job = res.data[0]
     user_skills = user.get("extracted_skills") or []
 
-    job["match_score"] = calculate_match_score(job, user)
-    breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
-    job["matched_skills"] = breakdown["matched"]
-    job["missing_skills"] = breakdown["missing"]
+    scores = score_job_for_user(job, user)
+    job.update(scores)
+    job["match_score"] = scores["fit_score"]
 
     return job
 

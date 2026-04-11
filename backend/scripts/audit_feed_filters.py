@@ -138,27 +138,29 @@ def spot_check_feed(jobs):
                 and ((j.get("experience_level") or "").lower() in allowed or j.get("experience_level") is None)
             ]
         elif expected_region == "global":
-            # Feed for "global" only shows jobs user can apply for: globally_accessible + open_to_intl
+            # Discovery: NULL is allowed. Only False is rejected.
             returned = [
                 j for j in jobs
-                if j.get("globally_accessible") is True
-                and j.get("open_to_intl") is True
+                if (j.get("globally_accessible") is True or j.get("globally_accessible") is None)
+                and (j.get("open_to_intl") is True or j.get("open_to_intl") is None)
                 and ((j.get("experience_level") or "").lower() in allowed or j.get("experience_level") is None)
             ]
         else:
             returned = [
                 j for j in jobs
                 if ((j.get("job_region") or "").strip().lower() == "ma"
-                    or (j.get("globally_accessible") is True and j.get("open_to_intl") is True))
+                    or ((j.get("globally_accessible") is True or j.get("globally_accessible") is None) 
+                        and (j.get("open_to_intl") is True or j.get("open_to_intl") is None)))
                 and ((j.get("experience_level") or "").lower() in allowed or j.get("experience_level") is None)
             ]
         bad_level = [j for j in returned if (j.get("experience_level") or "").lower() not in allowed and j.get("experience_level") is not None]
-        # For global we don't filter by job_region (we filter by globally_accessible + open_to_intl), so don't require region
+        # For discovery we don't filter by job_region (we check MA or global_accessible), so don't query region strictly
         bad_region = [] if expected_region == "global" else [j for j in returned if expected_region and (j.get("job_region") or "").strip().lower() != expected_region]
         if expected_region == "global":
-            bad_global = [j for j in returned if not j.get("globally_accessible") or not j.get("open_to_intl")]
+            # Ensure no explicit 'False' values leaked through
+            bad_global = [j for j in returned if j.get("globally_accessible") is False or j.get("open_to_intl") is False]
             if bad_global:
-                print(f"  FAIL geography={geo!r}: {len(bad_global)} jobs missing globally_accessible/open_to_intl (would show ineligible jobs)")
+                print(f"  FAIL geography={geo!r}: {len(bad_global)} jobs with EXPLICIT globally_accessible=false or open_to_intl=false returned")
                 all_ok = False
         if bad_level or bad_region:
             print(f"  FAIL geography={geo!r} user_seniority={seniority!r}: bad_level={len(bad_level)} bad_region={len(bad_region)}")

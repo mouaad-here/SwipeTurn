@@ -2,9 +2,113 @@ import re
 import json
 from typing import List, Dict, Any, Optional
 
+from datetime import datetime
+
 import numpy as np
 
 
+<<<<<<< HEAD
+=======
+def safe_posted_at_ts(job: dict) -> float:
+    raw = job.get("posted_at")
+    if not raw:
+        return 0.0
+    try:
+        s = str(raw).replace("Z", "+00:00")
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        return 0.0
+
+
+def recency_bonus(job: dict) -> float:
+    ts = safe_posted_at_ts(job)
+    if not ts: return 0.0
+    days_old = (datetime.utcnow().timestamp() - ts) / 86400.0
+    if days_old < 3: return 2.5
+    if days_old < 7: return 1.5
+    if days_old < 14: return 0.5
+    return 0.0
+
+
+def get_dedup_key(job: dict) -> str:
+    """Generate a stable deduplication key for near-duplicate jobs."""
+    title = (job.get("title") or "").lower()
+    company = (job.get("company") or "").lower()
+    
+    # Remove common geographic/gender suffixes and parentheticals
+    title = re.sub(r'\b(m/f/d|m/f|h/f|d/f/m|w/m/d)\b', '', title)
+    title = re.sub(r'[-–—]\s*(remote|hybrid|onsite)\b', '', title)
+    title = re.sub(r'\(.*?\)', '', title)
+    
+    # Normalize and take the first few words to aggressively group similar titles
+    title_norm = re.sub(r'[^a-z0-9\s]', '', title).strip()
+    title_words = " ".join(title_norm.split()[:3])
+    comp_norm = re.sub(r'[^a-z0-9]', '', company)
+    
+    return f"{comp_norm}::{title_words}"
+
+def assess_profile_quality(user: dict) -> str:
+    """
+    Classify the quality of a user's profile to gate personalized logic.
+    Tiers:
+      - empty: no useful signal.
+      - weak: limited signal (few skills/prefs).
+      - partial: reasonable signal (CV present or enough skills/prefs).
+      - strong: full signal (CV + embedding + skills/prefs).
+    """
+    cv_text = user.get("cv_text")
+    cv_embedding = user.get("cv_embedding")
+    skills = user.get("extracted_skills") or []
+    prefs = user.get("preferences") or {}
+    
+    has_cv = bool(cv_text and len(cv_text.strip()) > 50)
+    has_embedding = bool(cv_embedding and isinstance(cv_embedding, list) and len(cv_embedding) > 0)
+    num_skills = len(skills)
+    
+    # Meaningful prefs equal those used in semantic/keyword matching
+    has_meaningful_prefs = bool(
+        (prefs.get("keywords") and len(prefs.get("keywords")) > 0) or 
+        (prefs.get("domains") and len(prefs.get("domains")) > 0) or 
+        (prefs.get("subcategories") and len(prefs.get("subcategories")) > 0)
+    )
+
+    if has_cv and has_embedding and (num_skills >= 3 or has_meaningful_prefs):
+        return "strong"
+        
+    if has_cv or num_skills >= 3 or has_meaningful_prefs:
+        return "partial"
+        
+    has_any_prefs = bool(prefs)
+    if num_skills > 0 or has_any_prefs:
+        return "weak"
+        
+    return "empty"
+
+
+def assess_job_quality(job: dict) -> str:
+    """
+    Classify the quality of a job post to gate scoring caps.
+    Tiers:
+      - low: no required_skills.
+      - medium: has some skills, reasonable description.
+      - high: well-structured, detailed description, multiple skills.
+    """
+    skills = job.get("required_skills") or []
+    desc = job.get("description_text") or ""
+    
+    num_skills = len(skills)
+    desc_len = len(desc.strip())
+    
+    if num_skills == 0:
+        return "low"
+        
+    if num_skills >= 3 and desc_len >= 500:
+        return "high"
+        
+    return "medium"
+
+
+>>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
 def normalize_skill(skill: str) -> str:
     """Lowercase and normalize for matching; preserve C++/C# via canonical forms."""
     s = (skill or "").lower().strip()
@@ -121,3 +225,82 @@ def get_skill_breakdown(user_skills: List[str], job_skills: List[str]) -> Dict[s
             missing.append(req)
 
     return {"matched": matched, "missing": missing}
+
+
+def score_job_for_user(
+    job: dict,
+    user: dict,
+    is_generic_feed: bool = False,
+    query_tokens: List[str] = None,
+    exact_priority: bool = False
+) -> dict:
+    """
+    Standardized scoring pipeline for jobs.
+    Returns a dictionary of score components and final calculated scores.
+    """
+    req_skills = job.get("required_skills") or []
+    user_skills = user.get("extracted_skills") or []
+    prefs = user.get("preferences") or {}
+    if not user_skills and prefs:
+        user_skills = list(prefs.get("keywords") or []) + list(prefs.get("domains") or [])
+
+    breakdown = get_skill_breakdown(user_skills, req_skills)
+    matched = breakdown["matched"]
+    missing = breakdown["missing"]
+
+    if is_generic_feed:
+        # Fallback scoring for poor profiles
+        desc = job.get("description_text") or ""
+        quality_score = 0.0
+        if len(req_skills) > 0:
+            quality_score += 10.0
+        if len(desc) > 500:
+            quality_score += 10.0
+
+        fit_score = quality_score
+        keyword_score = quality_score
+        semantic_sim = 0.0
+    else:
+        profile_quality = assess_profile_quality(user)
+        job_quality = assess_job_quality(job)
+        keyword_score = calculate_match_score(job, user)
+
+        user_embedding = user.get("cv_embedding")
+        job_embedding = job.get("description_embedding")
+        
+        if user_embedding is not None and job_embedding is not None:
+            semantic_sim = cosine_similarity(user_embedding, job_embedding)
+        else:
+            semantic_sim = 0.0
+            
+        fit_score = calculate_hybrid_score(keyword_score, semantic_sim, profile_quality, job_quality)
+
+    r_bonus = recency_bonus(job)
+    
+    search_boost = 0.0
+    if query_tokens and exact_priority:
+        EXACT_BONUS = 18.0
+        title = (job.get("title") or "").lower()
+        skills = [s.lower() for s in req_skills]
+        desc = (job.get("description_text") or "")[:1000].lower()
+        bonus = 0.0
+        for token in query_tokens:
+            if token in title or any(token in s for s in skills):
+                bonus += EXACT_BONUS
+            elif token in desc:
+                bonus += EXACT_BONUS * 0.4
+        search_boost = min(bonus, EXACT_BONUS * len(query_tokens))
+
+    rank_score = fit_score + r_bonus
+
+    return {
+        "keyword_score": keyword_score,
+        "semantic_similarity": semantic_sim,
+        "reranker_score": None,  # Computed later if rerank is enabled
+        "recency_bonus": r_bonus,
+        "search_boost": search_boost,
+        "fit_score": round(min(100.0, fit_score), 1),
+        "rank_score": rank_score,
+        "matched_skills": matched,
+        "missing_skills": missing
+    }
