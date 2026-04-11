@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useBootState } from '@/hooks/useBootState';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -69,6 +70,7 @@ export default function PreviewScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getAuthHeaders } = useAuthHeaders();
+  const { setOnboardingCompleteFlag } = useBootState();
   const [draft, setDraft] = useState<Partial<OnboardingState>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +123,7 @@ export default function PreviewScreen() {
       }
 
       await clearDraft();
+      await setOnboardingCompleteFlag();
       router.replace('/(tabs)/swipe');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
