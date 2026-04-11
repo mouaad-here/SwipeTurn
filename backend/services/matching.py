@@ -185,12 +185,20 @@ def calculate_match_score(
     return round(min(score, 100.0), 1)
 
 
-def calculate_hybrid_score(keyword_score: float, semantic_similarity: float) -> float:
+def calculate_hybrid_score(
+    keyword_score: float, 
+    semantic_similarity: float,
+    profile_quality: str = None,
+    job_quality: str = None
+) -> float:
     """
     Blend keyword-based score with semantic similarity from embeddings.
 
     - keyword_score: existing 0–100 score from calculate_match_score
     - semantic_similarity: cosine similarity in [-1, 1]
+    
+    Note: profile_quality and job_quality are currently accepted for compatibility
+    and future use, but the 50/50 scoring formula remains unchanged for now.
 
     We map cosine to [0, 100] and average:
         semantic_scaled = (sim + 1) * 50

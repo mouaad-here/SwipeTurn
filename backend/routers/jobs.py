@@ -146,26 +146,31 @@ def get_job_feed(
             print(f"[feed] candidate_jobs_after_domain_filter={len(candidate_jobs)}")
 
         # 5. Resolve user embedding
-        user_embedding = None
+        scoring_user = user # Use shared object by default
         try:
             if user.get("cv_embedding"):
-                user_embedding = user["cv_embedding"]
+                pass 
             else:
                 profile_text = build_user_profile_text_from_user(user)
                 if profile_text:
                     model = get_embedding_model()
                     user_embedding = model.encode(profile_text).tolist()
+                    
+                    # Create a shallow local copy for the current request's scoring
+                    scoring_user = user.copy()
+                    scoring_user["cv_embedding"] = user_embedding
+                    
                     try:
                         get_supabase().table("users").update({"cv_embedding": user_embedding}).eq("id", user_id).execute()
                     except Exception as e:
                         print(f"[feed] Error saving lazy CV embedding: {e}")
         except Exception:
-            user_embedding = None
+            pass
 
         # 6. Score
         scored_jobs = []
         for job in candidate_jobs:
-            scores = score_job_for_user(job, user, is_generic_feed=is_generic_feed)
+            scores = score_job_for_user(job, scoring_user, is_generic_feed=is_generic_feed)
             job.update(scores)
             job["match_score"] = scores["fit_score"]
             scored_jobs.append(job)
