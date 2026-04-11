@@ -122,19 +122,19 @@ const styles = StyleSheet.create({
         alignItems: 'baseline',
     },
     logoPrefix: {
-        fontFamily: 'ClashDisplay',
+        fontFamily: 'ClashDisplay-Semibold',
         fontSize: 48,
         letterSpacing: -1,
         color: COLORS.textPrimary,
     },
     logoSuffix: {
-        fontFamily: 'ClashDisplay',
+        fontFamily: 'ClashDisplay-Semibold',
         fontSize: 48,
         letterSpacing: -1,
         color: COLORS.accent,
     },
     tagline: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 18,
         color: COLORS.textSecondary,
         marginTop: 16,
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
         elevation: 8,
     },
     getStartedText: {
-        fontFamily: 'Satoshi', fontWeight: '700',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 18,
         letterSpacing: 0.5,
         color: 'white',
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     continueWithoutText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 16,
         color: COLORS.textSecondary,
     },
@@ -191,12 +191,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loginPrefix: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 14,
         color: COLORS.textMuted,
     },
     loginLink: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
         color: COLORS.accent,
     },

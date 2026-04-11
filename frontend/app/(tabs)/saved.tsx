@@ -411,12 +411,12 @@ const styles = StyleSheet.create({
         paddingBottom: 16,
     },
     headerTitle: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 32,
         color: COLORS.textPrimary,
     },
     headerSubtitle: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 13,
         color: COLORS.textMeta,
         marginTop: 2,
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#DCFCE7',
     },
     logoInitial: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 20,
         color: COLORS.textPrimary,
     },
@@ -463,12 +463,12 @@ const styles = StyleSheet.create({
         gap: 3,
     },
     jobTitle: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 15,
         color: COLORS.textPrimary,
     },
     companyName: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 13,
         color: COLORS.textMuted,
     },
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     metaText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 11,
         color: COLORS.textMeta,
     },
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.textMeta,
     },
     applyBtnText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
         color: 'white',
     },
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
     },
     appliedText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 12,
         color: COLORS.accentSuccess,
     },
@@ -528,20 +528,20 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     emptyTitle: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 20,
         color: COLORS.textPrimary,
         marginBottom: 6,
     },
     emptySubtitle: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 14,
         color: COLORS.textMuted,
         textAlign: 'center',
         paddingHorizontal: 32,
     },
     hint: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 12,
         color: COLORS.textMeta,
         textAlign: 'center',

@@ -72,16 +72,14 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     title: {
-        fontFamily: 'ClashDisplay',
-        fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 28,
         color: COLORS.textPrimary,
         textAlign: 'center',
         marginBottom: 12,
     },
     message: {
-        fontFamily: 'Satoshi',
-        fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 15,
         color: COLORS.textMuted,
         textAlign: 'center',
@@ -107,8 +105,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     benefitText: {
-        fontFamily: 'Satoshi',
-        fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 15,
         color: COLORS.textPrimary,
     },
@@ -125,8 +122,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     primaryButtonText: {
-        fontFamily: 'Satoshi',
-        fontWeight: '700',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 16,
         color: 'white',
     },
@@ -141,8 +137,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     secondaryButtonText: {
-        fontFamily: 'Satoshi',
-        fontWeight: '700',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 16,
         color: COLORS.textPrimary,
     },

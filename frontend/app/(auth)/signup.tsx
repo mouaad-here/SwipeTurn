@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     heading: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 32,
         color: COLORS.textPrimary,
         marginTop: 28,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     label: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
         color: COLORS.textSecondary,
         marginBottom: 10,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
         padding: 16,
         color: COLORS.textPrimary,
         fontSize: 15,
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
     },
     eyeIcon: {
         padding: 16,
@@ -418,13 +418,13 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     errorText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         color: COLORS.accent,
         fontSize: 13,
         marginTop: 8,
     },
     verifyPrompt: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 15,
         color: COLORS.textSecondary,
         marginBottom: 8,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
     },
     secondaryButtonText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 15,
         color: COLORS.textMuted,
     },
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'Satoshi', fontWeight: '700',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 18,
         letterSpacing: 0.5,
         color: 'white',
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.border,
     },
     dividerText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
         color: COLORS.textMeta,
         marginHorizontal: 16,
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     googleButtonText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 16,
         color: COLORS.textPrimary,
     },
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     termsText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 12,
         color: COLORS.textMeta,
         textAlign: 'center',

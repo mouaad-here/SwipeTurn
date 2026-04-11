@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     },
     backBtn: { width: 40, height: 40, justifyContent: 'center' },
     headerTitle: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 20,
         color: COLORS.textPrimary,
     },
@@ -221,14 +221,14 @@ const styles = StyleSheet.create({
     illustrationIcon: { fontSize: 44 },
     successCircle: { marginBottom: 24 },
     title: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 26,
         color: COLORS.textPrimary,
         textAlign: 'center',
         marginBottom: 10,
     },
     subtitle: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 15,
         color: COLORS.textMuted,
         textAlign: 'center',
@@ -247,13 +247,13 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
     },
     fileText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
         color: COLORS.textMuted,
         flex: 1,
     },
     errorText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 13,
         color: '#EF4444',
         textAlign: 'center',
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     },
     uploadBtnDisabled: { opacity: 0.6 },
     uploadBtnText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 16,
         color: 'white',
     },
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
         marginBottom: 28,
     },
     skillsLabel: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
         color: COLORS.textMuted,
         marginBottom: 10,
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     skillChipText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 13,
         color: COLORS.textPrimary,
     },
@@ -317,13 +317,13 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     doneBtnText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 16,
         color: 'white',
     },
     uploadAnotherBtn: { paddingVertical: 8 },
     uploadAnotherText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 14,
         color: COLORS.textMuted,
         textDecorationLine: 'underline',

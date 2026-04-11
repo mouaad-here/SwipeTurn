@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     heading: {
-        fontFamily: 'ClashDisplay', fontWeight: '700',
+        fontFamily: 'ClashDisplay-Bold',
         fontSize: 32,
         color: COLORS.textPrimary,
         marginTop: 28,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
         gap: 0,
     },
     label: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
         color: COLORS.textSecondary,
         marginBottom: 10,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
         padding: 18,
         color: COLORS.textPrimary,
         fontSize: 15,
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
     },
     eyeIcon: {
         minWidth: 48,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     errorText: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         color: COLORS.accent,
         fontSize: 13,
         marginTop: 8,
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     continueButtonText: {
-        fontFamily: 'Satoshi', fontWeight: '700',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 18,
         letterSpacing: 0.5,
         color: 'white',
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.border,
     },
     dividerText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 13,
         color: COLORS.textMeta,
         marginHorizontal: 16,
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     googleButtonText: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 16,
         color: COLORS.textPrimary,
     },
@@ -387,12 +387,12 @@ const styles = StyleSheet.create({
         paddingBottom: 64,
     },
     signupPrefix: {
-        fontFamily: 'Satoshi', fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 14,
         color: COLORS.textMuted,
     },
     signupLink: {
-        fontFamily: 'Satoshi', fontWeight: '500',
+        fontFamily: 'Satoshi-Medium',
         fontSize: 14,
         color: COLORS.textPrimary,
         textDecorationLine: 'underline',

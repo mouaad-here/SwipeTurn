@@ -48,15 +48,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     bannerTitle: {
-        fontFamily: 'Satoshi',
-        fontWeight: '700',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 14,
         color: COLORS.textPrimary,
         marginBottom: 2,
     },
     bannerSubtitle: {
-        fontFamily: 'Satoshi',
-        fontWeight: '400',
+        fontFamily: 'Satoshi-Regular',
         fontSize: 12,
         color: COLORS.textMuted,
         lineHeight: 16,
@@ -69,8 +67,7 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
     actionText: {
-        fontFamily: 'Satoshi',
-        fontWeight: '600',
+        fontFamily: 'Satoshi-Bold',
         fontSize: 12,
         color: 'white',
     },
