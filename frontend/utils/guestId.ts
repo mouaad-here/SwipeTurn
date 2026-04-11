@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
 
-const GUEST_ID_KEY = 'swipeturn_guest_id';
+const GUEST_ID_KEY = 'swipturn_guest_id';
 
 export async function clearGuestId(): Promise<void> {
     try {

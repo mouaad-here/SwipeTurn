@@ -1,4 +1,4 @@
-﻿import { mockOnboardingState } from '@/app/(onboarding)/store';
+import { mockOnboardingState } from '@/app/(onboarding)/store';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
 import API_URL from '@/constants/api';

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * update-cv.tsx ÔÇö Standalone CV upload modal (not part of onboarding flow)
  * Opened from Profile > My Resume > Update CV / Add CV
  * After upload completes, simply goes back to profile.

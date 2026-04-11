@@ -1,5 +1,5 @@
 /**
- * Font family constants for SwipTurn.
+ * Font family constants for SwipeTurn.
  * Fonts: Clash Display (headings) + Satoshi (body) from Fontshare.
  *
  * Usage: import { Fonts } from '@/constants/fonts';

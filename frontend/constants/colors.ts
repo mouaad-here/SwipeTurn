@@ -1,5 +1,5 @@
 /**
- * SwipTurn design token system.
+ * SwipeTurn design token system.
  * Import from here — never hardcode colors inline in components.
  *
  * Usage:

@@ -1,4 +1,4 @@
-﻿import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import React, { createContext, useContext, useEffect, useState } from 'react';
