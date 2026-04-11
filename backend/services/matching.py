@@ -7,8 +7,6 @@ from datetime import datetime
 import numpy as np
 
 
-<<<<<<< HEAD
-=======
 def safe_posted_at_ts(job: dict) -> float:
     raw = job.get("posted_at")
     if not raw:
@@ -107,8 +105,6 @@ def assess_job_quality(job: dict) -> str:
         
     return "medium"
 
-
->>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
 def normalize_skill(skill: str) -> str:
     """Lowercase and normalize for matching; preserve C++/C# via canonical forms."""
     s = (skill or "").lower().strip()

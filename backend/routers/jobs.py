@@ -35,6 +35,11 @@ def get_job_feed(
         if not user_skills and prefs:
             user_skills = list(prefs.get("keywords") or []) + list(prefs.get("domains") or [])
 
+        # Quality assessment & Mode detection
+        profile_quality = assess_profile_quality(user)
+        is_generic_feed = profile_quality in ["empty", "weak"]
+        stats = {"scored": 0, "after_min_score": 0, "reranked": 0, "reranker_latency_ms": 0}
+
         # 1. Exclude swiped jobs
         swipes_res = get_supabase().table("swipes").select("job_id").eq("user_id", user_id).execute()
         swiped_ids = set(s["job_id"] for s in swipes_res.data)
@@ -150,13 +155,10 @@ def get_job_feed(
                 if profile_text:
                     model = get_embedding_model()
                     user_embedding = model.encode(profile_text).tolist()
-<<<<<<< HEAD
-=======
                     try:
                         get_supabase().table("users").update({"cv_embedding": user_embedding}).eq("id", user_id).execute()
                     except Exception as e:
                         print(f"[feed] Error saving lazy CV embedding: {e}")
->>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
         except Exception:
             user_embedding = None
 
@@ -222,14 +224,9 @@ def get_job_feed(
         end_idx = start_idx + limit
         paginated_jobs = strict_jobs[start_idx:end_idx]
 
-<<<<<<< HEAD
-        has_cv = bool(user.get("cv_storage_path"))
-=======
         has_cv = bool(user.get("cv_embedding"))
         
         print(f"[feed] user_id={user_id} profile_quality={profile_quality} mode={'generic' if is_generic_feed else 'personalized'} stats={stats}")
-        
->>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
         return {
             "page": page,
             "limit": limit,
@@ -308,16 +305,6 @@ def search_jobs(
 
     scored = []
     for job in candidates:
-<<<<<<< HEAD
-        base_score = calculate_match_score(job, user)
-        job["match_score"] = round(min(100.0, base_score + _exact_bonus(job)), 1)
-        breakdown = get_skill_breakdown(user_skills, job.get("required_skills", []))
-        job["matched_skills"] = breakdown["matched"]
-        job["missing_skills"] = breakdown["missing"]
-        scored.append(job)
-
-    scored.sort(key=lambda x: float(x.get("match_score") or 0), reverse=True)
-=======
         scores = score_job_for_user(job, user, query_tokens=query_tokens, exact_priority=exact_priority)
         job.update(scores)
         job["match_score"] = scores["fit_score"]
@@ -325,7 +312,6 @@ def search_jobs(
         scored.append(job)
 
     scored.sort(key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""), reverse=True)
->>>>>>> b5ddbbc (feat(backend): matching engine improvements and guest user merge support)
     start = (page - 1) * limit
     paginated = scored[start:start + limit]
 
