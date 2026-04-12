@@ -142,8 +142,12 @@ def get_job_feed(
                 ])
                 return any(kw in text for kw in domain_kws)
 
-            candidate_jobs = [j for j in candidate_jobs if _matches_user_domain(j)]
-            print(f"[feed] candidate_jobs_after_domain_filter={len(candidate_jobs)}")
+            domain_filtered = [j for j in candidate_jobs if _matches_user_domain(j)]
+            if len(domain_filtered) == 0 and len(candidate_jobs) > 0:
+                print(f"[feed] candidate_jobs_after_domain_filter=0 (FALLBACK triggered: using {len(candidate_jobs)} pre-filter jobs)")
+            else:
+                candidate_jobs = domain_filtered
+                print(f"[feed] candidate_jobs_after_domain_filter={len(candidate_jobs)}")
 
         # 5. Resolve user embedding
         scoring_user = user # Use shared object by default
