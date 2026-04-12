@@ -147,7 +147,7 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                         <View style={styles.companyInfo}>
                             <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(job.company)}</Text>
                             <View style={styles.companyMetaRow}>
-                                <Text style={styles.companyLocation}>­ƒôì {job.location}</Text>
+                                <Text style={styles.companyLocation}>📍 {job.location}</Text>
                                 {formatPostedAt(job.posted_at) ? (
                                     <Text style={styles.postedBadge}>{formatPostedAt(job.posted_at)}</Text>
                                 ) : null}
@@ -199,6 +199,7 @@ export default function SwipeScreen() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
     const [geographyMode, setGeographyMode] = useState<string>('both');
     const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
@@ -223,7 +224,7 @@ export default function SwipeScreen() {
                 if (raw) {
                     const parsed = JSON.parse(raw) as { jobs?: any[]; geographyMode?: string; timestamp?: number };
                     if (parsed?.jobs?.length && parsed.timestamp && Date.now() - parsed.timestamp < FEED_CACHE_TTL_MS) {
-                        // Dedup by ID ÔÇö old cache entries may pre-date the dedup logic
+                        // Dedup by ID — old cache entries may pre-date the dedup logic
                         const seenCache = new Set<string>();
                         const dedupedJobs = (parsed.jobs as any[]).filter(j => {
                             if (!j?.id || seenCache.has(j.id)) return false;
@@ -321,6 +322,7 @@ export default function SwipeScreen() {
                     setPage(1);
                     setHasMore(true);
                 }
+                setError("Authentication error. Please log in again.");
                 loadingRef.current = false;
                 setLoading(false);
                 setIsFetchingMore(false);
@@ -335,6 +337,7 @@ export default function SwipeScreen() {
                     setPage(1);
                     setHasMore(true);
                 }
+                setError(`Server returned error ${response.status}.`);
                 loadingRef.current = false;
                 setLoading(false);
                 setIsFetchingMore(false);
@@ -342,6 +345,7 @@ export default function SwipeScreen() {
                 return;
             }
 
+            setError(null);
             const data = await response.json();
             const rawJobs = Array.isArray(data.jobs) ? data.jobs : [];
             const geographyMode = data.geography_mode || 'both';
@@ -398,13 +402,14 @@ export default function SwipeScreen() {
             });
 
 
-        } catch (error) {
-            console.error("Feed error:", error, "| API_URL:", `${API_URL}/jobs/feed`);
+        } catch (fetchError) {
+            console.error("Feed error:", fetchError, "| API_URL:", `${API_URL}/jobs/feed`);
             if (!silent && !append) {
                 setFeed([]);
                 setGeographyMode('both');
                 setPage(1);
                 setHasMore(true);
+                setError("Network error. Make sure your local API_URL is using your computer's IP address instead of localhost.");
             }
         } finally {
             loadingRef.current = false;
@@ -471,13 +476,24 @@ export default function SwipeScreen() {
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
-            <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
-            <Text style={styles.emptyTitle}>No more jobs today</Text>
-            <Text style={styles.emptySubtitle}>You've caught up with all matches.</Text>
+            {error ? (
+                <>
+                    <Ionicons name="cloud-offline-outline" size={64} color={COLORS.accent} />
+                    <Text style={styles.emptyTitle}>Connection Issue</Text>
+                    <Text style={styles.emptySubtitle}>{error}</Text>
+                </>
+            ) : (
+                <>
+                    <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
+                    <Text style={styles.emptyTitle}>No more jobs today</Text>
+                    <Text style={styles.emptySubtitle}>You've caught up with all matches.</Text>
+                </>
+            )}
             <Pressable 
                 style={styles.refreshButton} 
                 onPress={() => {
                     setHasMore(true);
+                    setError(null);
                     loadFeed(1, false, false);
                 }}
             >
@@ -506,7 +522,7 @@ export default function SwipeScreen() {
             <View style={styles.stackContainer}>
                 {loading ? (
                     <ActivityIndicator size="large" color={COLORS.accent} style={{ marginTop: 100 }} />
-                ) : (feed.length === 0 && !hasMore && !isFetchingMore) ? (
+                ) : (feed.length === 0) ? (
                     renderEmptyState()
                 ) : (
                     <View style={styles.cardsWrapper}>
@@ -615,7 +631,7 @@ export default function SwipeScreen() {
                                 {(Array.isArray(selectedJob.skills) ? selectedJob.skills : []).map((skill: any, idx: number) => (
                                     <View key={idx} style={[styles.sheetSkillChip, skill.matched ? styles.sheetSkillChipMatched : styles.sheetSkillChipUnmatched]}>
                                         {skill.matched ? (
-                                            <Text style={styles.sheetSkillTextMatched}>Ô£ô {skill.name}</Text>
+                                            <Text style={styles.sheetSkillTextMatched}>✅ {skill.name}</Text>
                                         ) : (
                                             <View style={styles.sheetSkillContentUnmatched}>
                                                 <View style={styles.sheetGreyDot} />

@@ -1,7 +1,7 @@
 import { mockOnboardingState } from '@/app/(onboarding)/store';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
-import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
-import API_URL from '@/constants/api';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { API_URL } from '@/constants/api';
 import { clearGuestId } from '@/utils/guestId';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
@@ -178,7 +178,7 @@ export default function ProfileScreen() {
             }
         };
 
-        // Two-step confirmation ÔÇö first alert explains consequences
+        // Two-step confirmation — first alert explains consequences
         Alert.alert(
             'Delete Account',
             'This will permanently delete your account, saved jobs, applications, and all profile data. This cannot be undone.',
@@ -203,7 +203,7 @@ export default function ProfileScreen() {
         );
     };
 
-    // In-place preference update ÔÇö no navigation to onboarding needed
+    // In-place preference update — no navigation to onboarding needed
     const updatePreference = async (patch: Record<string, any>) => {
         try {
             const headers = await getAuthHeaders();
@@ -300,7 +300,7 @@ export default function ProfileScreen() {
     const MAX_CHIPS = 5;
     const visibleChips = allPrefChips.slice(0, MAX_CHIPS);
     const overflowCount = allPrefChips.length - MAX_CHIPS;
-    const cvFilename = user?.has_cv ? 'CV processed Ô£ô' : null;
+    const cvFilename = user?.has_cv ? 'CV processed ✅' : null;
     const geographyLabel = (() => {
         const g = (user?.preferences?.geography || mockOnboardingState.geography || '').toLowerCase();
         if (g === 'morocco') return 'Morocco ­ƒç▓­ƒçª';
@@ -313,11 +313,11 @@ export default function ProfileScreen() {
         if (s === 'junior') return 'Junior';
         if (s === 'mid') return 'Mid';
         if (s === 'senior') return 'Senior';
-        return s || 'ÔÇö';
+        return s || '—';
     })();
     const jobTypeLabel = (() => {
         const jt = user?.preferences?.job_type || user?.desired_job_type || [];
-        if (!jt.length) return 'ÔÇö';
+        if (!jt.length) return '—';
         const map: Record<string, string> = { permanent: 'CDI', 'fixed-term': 'CDD', internship: 'Stage' };
         return jt.map((t: string) => map[t] ?? t).join(', ');
     })();
@@ -420,7 +420,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.settingsCard}>
 
-                    {/* Inline pickers ÔÇö no navigation required */}
+                    {/* Inline pickers — no navigation required */}
                     <Pressable style={styles.settingRow} onPress={pickGeography}>
                         <View style={styles.settingIconCenter}>
                             <Ionicons name="earth-outline" size={20} color={COLORS.textMuted} />
@@ -454,12 +454,12 @@ export default function ProfileScreen() {
                         </View>
                         <Text style={styles.settingLabel}>Domains & Skills</Text>
                         <Text style={styles.settingValue} numberOfLines={1}>
-                            {domains.slice(0, 2).join(', ') || 'ÔÇö'}
+                            {domains.slice(0, 2).join(', ') || '—'}
                         </Text>
                         <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
-                    {/* Non-functional but visible ÔÇö future features */}
+                    {/* Non-functional but visible — future features */}
                     <Pressable style={styles.settingRow}>
                         <View style={styles.settingIconCenter}>
                             <Ionicons name="notifications-outline" size={20} color={COLORS.textMuted} />
@@ -499,7 +499,7 @@ export default function ProfileScreen() {
 
                 </View>
 
-                {/* Log out ÔÇö below the settings card, visually separated */}
+                {/* Log out — below the settings card, visually separated */}
                 <View style={[styles.settingsCard, { marginBottom: 40 }]}>
                     <Pressable style={[styles.settingRow, { borderBottomWidth: 0 }]} onPress={handleLogout} id="logout-btn">
                         <View style={styles.settingIconCenter}>

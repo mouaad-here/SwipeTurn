@@ -52,7 +52,7 @@ export default function UpdateCvScreen() {
 
             const headers = await getAuthHeaders();
             const controller = new AbortController();
-            // CV upload involves LLM parsing (~10-15s) ÔÇö give it a generous timeout
+            // CV upload involves LLM parsing (~10-15s) — give it a generous timeout
             const timeoutId = setTimeout(() => controller.abort(), 90_000);
             let res: Response;
             try {
@@ -65,7 +65,7 @@ export default function UpdateCvScreen() {
             } catch (fetchErr: any) {
                 clearTimeout(timeoutId);
                 if (fetchErr?.name === 'AbortError') {
-                    setError('Upload timed out ÔÇö the server took too long. Please try again.');
+                    setError('Upload timed out — the server took too long. Please try again.');
                 } else {
                     setError('Network error. Check your connection and try again.');
                 }
