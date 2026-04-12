@@ -88,6 +88,10 @@ def build_user_profile_text_from_user(user: dict) -> str:
     skills_text = ", ".join(skills)
     domains_text = ", ".join(domains)
     keywords_text = ", ".join(keywords)
+    
+    summary_raw = prefs.get("summary") or ""
+    summary = summary_raw.strip()[:500]
+    work_str = ""
 
     return (
         f"query: Candidate profile. "
