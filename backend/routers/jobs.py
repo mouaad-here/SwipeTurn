@@ -110,15 +110,22 @@ def get_job_feed(
         candidate_jobs = []
         for j in raw_jobs:
             if j["id"] in swiped_ids:
+                print(f"[feed] exclusion: dropped {j['id']} - already swiped")
                 continue
-            if not (j.get("apply_url") or "").strip().startswith(("http://", "https://")):
+            
+            apply_url = (j.get("apply_url") or "").strip()
+            if not apply_url.startswith(("http://", "https://")):
+                print(f"[feed] exclusion: dropped {j['id']} - invalid apply_url '{apply_url}'")
                 continue
+                
             dedup_key = (
                 (j.get("title") or "").strip().lower(),
                 (j.get("company") or "").strip().lower(),
             )
             if dedup_key in seen_title_company:
+                print(f"[feed] exclusion: dropped {j['id']} - duplicate key {dedup_key}")
                 continue
+                
             seen_title_company.add(dedup_key)
             candidate_jobs.append(j)
 
