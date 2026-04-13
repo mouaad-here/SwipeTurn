@@ -116,7 +116,7 @@ export default function UpdateCvScreen() {
                 {!uploaded ? (
                     <>
                         <View style={styles.illustrationBox}>
-                            <Text style={styles.illustrationIcon}>­ƒôä</Text>
+                            <Ionicons name="document-text-outline" size={44} color={COLORS.accent} />
                         </View>
 
                         <Text style={styles.title}>Upload your CV</Text>
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 24,
     },
-    illustrationIcon: { fontSize: 44 },
+
     successCircle: { marginBottom: 24 },
     title: {
         fontFamily: 'ClashDisplay-Bold',

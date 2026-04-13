@@ -147,7 +147,10 @@ const SwipeCard = ({ job, index, isTopCard, swipeDirection, handleSwipeEnd, onCa
                         <View style={styles.companyInfo}>
                             <Text style={styles.companyName} numberOfLines={1} ellipsizeMode="tail">{displayCompany(job.company)}</Text>
                             <View style={styles.companyMetaRow}>
-                                <Text style={styles.companyLocation}>📍 {job.location}</Text>
+                                <View style={styles.locationRow}>
+                                    <Ionicons name="location-outline" size={13} color={COLORS.textMuted} />
+                                    <Text style={styles.companyLocation}>{job.location}</Text>
+                                </View>
                                 {formatPostedAt(job.posted_at) ? (
                                     <Text style={styles.postedBadge}>{formatPostedAt(job.posted_at)}</Text>
                                 ) : null}
@@ -215,31 +218,47 @@ export default function SwipeScreen() {
         bottomSheetModalRef.current?.present();
     };
 
+    const checkMorningRefresh = async () => {
+        try {
+            const lastRefresh = await AsyncStorage.getItem('swipeturn_morning_refresh_date');
+            const now = new Date();
+            const todayStr = now.toLocaleDateString();
+            
+            if (now.getHours() >= 9 && lastRefresh !== todayStr) {
+                await AsyncStorage.setItem('swipeturn_morning_refresh_date', todayStr);
+                await AsyncStorage.removeItem(FEED_CACHE_KEY);
+                return true;
+            }
+        } catch (_) {}
+        return false;
+    };
+
     useEffect(() => {
         if (feedLoadedRef.current) return;
         feedLoadedRef.current = true;
         (async () => {
-            try {
-                const raw = await AsyncStorage.getItem(FEED_CACHE_KEY);
-                if (raw) {
-                    const parsed = JSON.parse(raw) as { jobs?: any[]; geographyMode?: string; timestamp?: number };
-                    if (parsed?.jobs?.length && parsed.timestamp && Date.now() - parsed.timestamp < FEED_CACHE_TTL_MS) {
-                        // Dedup by ID — old cache entries may pre-date the dedup logic
-                        const seenCache = new Set<string>();
-                        const dedupedJobs = (parsed.jobs as any[]).filter(j => {
-                            if (!j?.id || seenCache.has(j.id)) return false;
-                            seenCache.add(j.id);
-                            return true;
-                        });
-                        setFeed(dedupedJobs);
-                        setGeographyMode(parsed.geographyMode || 'both');
-                        setLoading(false);
-                        // Start a silent refresh of page 1
-                        loadFeed(1, false, true);
-                        return;
+            const forceRefresh = await checkMorningRefresh();
+            if (!forceRefresh) {
+                try {
+                    const raw = await AsyncStorage.getItem(FEED_CACHE_KEY);
+                    if (raw) {
+                        const parsed = JSON.parse(raw) as { jobs?: any[]; geographyMode?: string; timestamp?: number };
+                        if (parsed?.jobs?.length && parsed.timestamp && Date.now() - parsed.timestamp < FEED_CACHE_TTL_MS) {
+                            const seenCache = new Set<string>();
+                            const dedupedJobs = (parsed.jobs as any[]).filter(j => {
+                                if (!j?.id || seenCache.has(j.id)) return false;
+                                seenCache.add(j.id);
+                                return true;
+                            });
+                            setFeed(dedupedJobs);
+                            setGeographyMode(parsed.geographyMode || 'both');
+                            setLoading(false);
+                            loadFeed(1, false, true);
+                            return;
+                        }
                     }
-                }
-            } catch (_) { }
+                } catch (_) { }
+            }
             await loadFeed(1);
         })();
     }, []);
@@ -282,8 +301,16 @@ export default function SwipeScreen() {
     // reflected in the recommendations.
     useFocusEffect(
         React.useCallback(() => {
-            // Silent refresh from page 1
-            loadFeed(1, false, true);
+            (async () => {
+                const forceRefresh = await checkMorningRefresh();
+                if (forceRefresh) {
+                    setPage(1);
+                    setHasMore(true);
+                    await loadFeed(1, false, false);
+                } else {
+                    loadFeed(1, false, true);
+                }
+            })();
         }, [])
     );
 
@@ -631,7 +658,10 @@ export default function SwipeScreen() {
                                 {(Array.isArray(selectedJob.skills) ? selectedJob.skills : []).map((skill: any, idx: number) => (
                                     <View key={idx} style={[styles.sheetSkillChip, skill.matched ? styles.sheetSkillChipMatched : styles.sheetSkillChipUnmatched]}>
                                         {skill.matched ? (
-                                            <Text style={styles.sheetSkillTextMatched}>✅ {skill.name}</Text>
+                                            <View style={styles.sheetSkillMatchedRow}>
+                                                <Ionicons name="checkmark-circle" size={13} color={COLORS.accentSuccess} />
+                                                <Text style={styles.sheetSkillTextMatched}>{skill.name}</Text>
+                                            </View>
                                         ) : (
                                             <View style={styles.sheetSkillContentUnmatched}>
                                                 <View style={styles.sheetGreyDot} />
@@ -706,6 +736,7 @@ const styles = StyleSheet.create({
     companyInfo: { flex: 1 },
     companyName: { fontFamily: 'Satoshi-Bold', fontSize: 16, color: COLORS.textPrimary, letterSpacing: -0.2 },
     companyMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     companyLocation: { fontFamily: 'Satoshi-Medium', fontSize: 14, color: COLORS.textMuted },
     postedBadge: { fontFamily: 'Satoshi-Bold', fontSize: 12, color: COLORS.accent },
     badgeRemote: { backgroundColor: COLORS_ALPHA.successLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
@@ -771,6 +802,7 @@ const styles = StyleSheet.create({
     sheetSkillChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
     sheetSkillChipMatched: { backgroundColor: COLORS_ALPHA.successLight, borderColor: COLORS.accentSuccess },
     sheetSkillChipUnmatched: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
+    sheetSkillMatchedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sheetSkillTextMatched: { fontFamily: 'Satoshi-Medium', fontSize: 12, color: COLORS.accentSuccess },
     sheetSkillContentUnmatched: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sheetGreyDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },

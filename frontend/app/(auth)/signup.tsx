@@ -347,10 +347,8 @@ export default function SignupScreen() {
 
                 <View style={styles.termsContainer}>
                     <Text style={styles.termsText}>
-                        By continuing, you agree to our{' '}
-                        <Text style={styles.termsLink}>Terms of Service</Text>
-                        {' '}and{' '}
-                        <Text style={styles.termsLink}>Privacy Policy</Text>
+                        By continuing, you agree to our Terms of Service and{' '}
+                        <Text style={styles.termsLink} onPress={() => WebBrowser.openBrowserAsync('https://swipeturn.com/privacy')}>Privacy Policy</Text>
                     </Text>
                 </View>
             </View>

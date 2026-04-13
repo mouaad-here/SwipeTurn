@@ -1,6 +1,6 @@
-import API_URL from '@/constants/api';
+import { API_URL } from '@/constants/api';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
-import { useAuthHeaders } from '@/features/auth/hooks/useAuthHeaders';
+import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { useAppStore } from '../../store/appStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -320,7 +320,7 @@ export default function SavedScreen() {
                             </>
                         ) : null}
                         <Text style={[styles.metaText, { color: freshColor }]}>
-                            {isClosed ? 'Closed' : item.timeAgo}
+                            {isClosed ? 'Closed' : `Saved ${item.timeAgo}`}
                         </Text>
                     </View>
                 </View>
@@ -382,7 +382,7 @@ export default function SavedScreen() {
                         })}
                         ListEmptyComponent={
                             <View style={styles.center}>
-                                <Text style={styles.emptyIcon}>­ƒôï</Text>
+                                <Ionicons name="file-tray-outline" size={64} color={COLORS.surface2} />
                                 <Text style={styles.emptyTitle}>Nothing saved yet</Text>
                                 <Text style={styles.emptySubtitle}>Swipe right on jobs to save them here.</Text>
                             </View>
@@ -523,10 +523,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingTop: 80,
     },
-    emptyIcon: {
-        fontSize: 40,
-        marginBottom: 12,
-    },
+
     emptyTitle: {
         fontFamily: 'ClashDisplay-Bold',
         fontSize: 20,

@@ -1,11 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { clearGuestId } from '@/utils/guestId';
 
 interface GuestGateProps {
     title?: string;
@@ -54,27 +52,7 @@ export function GuestGate({
                 </Pressable>
             </View>
 
-            {__DEV__ && (
-                <Pressable 
-                    style={styles.devWipeButton} 
-                    onPress={async () => {
-                        try {
-                            await clearGuestId();
-                            await AsyncStorage.multiRemove([
-                                'swipturn:onboarding_done:guest',
-                                'swipturn:onboarding_started:guest',
-                                'swipturn_feed_cache',
-                                'guestId'
-                            ]);
-                            Alert.alert('Dev Data Wiped', 'Guest ID and onboarding data removed. Please force restart the app for a clean state.');
-                        } catch (e) {
-                            Alert.alert('Error', 'Failed to wipe guest data');
-                        }
-                    }}
-                >
-                    <Text style={styles.devWipeText}>DEV: Wipe Guest Data</Text>
-                </Pressable>
-            )}
+
         </View>
     );
 }
@@ -164,20 +142,5 @@ const styles = StyleSheet.create({
         fontFamily: 'Satoshi-Bold',
         fontSize: 16,
         color: COLORS.textPrimary,
-    },
-    devWipeButton: {
-        marginTop: 24,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 59, 48, 0.5)',
-    },
-    devWipeText: {
-        color: '#FF3B30',
-        fontFamily: 'Satoshi-Bold',
-        fontSize: 12,
-        textAlign: 'center',
     },
 });
