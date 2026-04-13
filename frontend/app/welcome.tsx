@@ -1,4 +1,4 @@
-﻿import { COLORS, COLORS_ALPHA } from '@/constants/colors';
+import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -10,8 +10,8 @@ import Animated, {
     useAnimatedStyle,
     Easing,
 } from 'react-native-reanimated';
-import Splash from '@/components/Splash';
 import { useBootState } from '@/hooks/useBootState';
+import { ActivityIndicator } from 'react-native';
 
 export default function WelcomeScreen() {
     const router = useRouter();
@@ -32,7 +32,11 @@ export default function WelcomeScreen() {
     }));
 
     if (bootLoading || gateLoading) {
-        return <Splash minimal text="Loading..." />;
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={COLORS.accent} />
+            </View>
+        );
     }
 
     // Strict Layout Guard equivalent for this lone root screen

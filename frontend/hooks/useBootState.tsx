@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import API_URL from '@/constants/api'; // Or standard import, check correct path if needed
+import { API_URL } from '@/constants/api'; // Or standard import, check correct path if needed
 
 export const GUEST_ONBOARDING_DONE_KEY = 'swipturn:onboarding_done:guest';
 export const GUEST_ONBOARDING_STARTED_KEY = 'swipturn:onboarding_started:guest';

@@ -1,12 +1,11 @@
-﻿import { COLORS } from '@/constants/colors';
-import Splash from '@/components/Splash';
+import { COLORS } from '@/constants/colors';
 import { useAuth, useSSO, useSignIn } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useBootState } from '@/hooks/useBootState';
-import API_URL from '@/constants/api';
+import { API_URL } from '@/constants/api';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
@@ -81,7 +80,7 @@ export default function LoginScreen() {
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId });
-                
+
                 try {
                     const guestId = await AsyncStorage.getItem('guestId');
                     if (guestId) {
@@ -219,8 +218,8 @@ export default function LoginScreen() {
                             <View style={styles.dividerLine} />
                         </View>
 
-                        <Pressable 
-                            style={[styles.googleButton, oauthLoading && styles.googleButtonDisabled]} 
+                        <Pressable
+                            style={[styles.googleButton, oauthLoading && styles.googleButtonDisabled]}
                             onPress={handleGoogleLogin}
                             disabled={oauthLoading || loading}
                         >

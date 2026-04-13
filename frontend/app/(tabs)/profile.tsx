@@ -223,8 +223,8 @@ export default function ProfileScreen() {
 
     const pickGeography = () => {
         const options = [
-            { label: 'Morocco only ­ƒç▓­ƒçª', value: 'morocco' },
-            { label: 'Global / Remote ­ƒîì', value: 'global' },
+            { label: 'Morocco only 🇲🇦', value: 'morocco' },
+            { label: 'Global / Remote 🌍', value: 'global' },
             { label: 'Both', value: 'both' },
         ];
         Alert.alert(
@@ -303,8 +303,8 @@ export default function ProfileScreen() {
     const cvFilename = user?.has_cv ? 'CV processed ✅' : null;
     const geographyLabel = (() => {
         const g = (user?.preferences?.geography || mockOnboardingState.geography || '').toLowerCase();
-        if (g === 'morocco') return 'Morocco ­ƒç▓­ƒçª';
-        if (g === 'global') return 'Global ­ƒîì';
+        if (g === 'morocco') return 'Morocco 🇲🇦';
+        if (g === 'global') return 'Global 🌍';
         return 'Both';
     })();
     const seniorityLabel = (() => {
@@ -469,7 +469,11 @@ export default function ProfileScreen() {
                         <Ionicons name="chevron-forward" size={20} color={COLORS.textMeta} />
                     </Pressable>
 
-                    <Pressable style={styles.settingRow}>
+                    <Pressable style={styles.settingRow} onPress={() => {
+                        import('expo-web-browser').then(WebBrowser => {
+                            WebBrowser.openBrowserAsync('https://swipeturn.com/privacy');
+                        });
+                    }}>
                         <View style={styles.settingIconCenter}>
                             <Ionicons name="lock-closed-outline" size={20} color={COLORS.textMuted} />
                         </View>
