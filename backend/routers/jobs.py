@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+import pytz
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import List, Optional
 
@@ -15,6 +16,32 @@ from constants import (
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 JOB_MAX_AGE_DAYS = int(os.getenv("JOB_MAX_AGE_DAYS", "14"))
+DAILY_BATCH_SIZE = int(os.getenv("DAILY_BATCH_SIZE", "25"))
+BATCH_RESET_HOUR = 8   # 8:00 AM Africa/Casablanca
+BATCH_TZ = pytz.timezone("Africa/Casablanca")
+
+
+def get_batch_window() -> tuple[datetime, datetime]:
+    """
+    Returns (window_start_utc, next_reset_utc) for the current daily batch window.
+
+    The window starts at 08:00 Africa/Casablanca each day.
+    If the current time is before 08:00, the active window started yesterday.
+    Both datetimes are returned as UTC-aware objects for DB storage.
+    """
+    now_local = datetime.now(BATCH_TZ)
+    today_reset = now_local.replace(hour=BATCH_RESET_HOUR, minute=0, second=0, microsecond=0)
+
+    if now_local < today_reset:
+        # Before today's 8 AM — active window started yesterday at 8 AM
+        window_start_local = today_reset - timedelta(days=1)
+        next_reset_local = today_reset
+    else:
+        # At or after today's 8 AM
+        window_start_local = today_reset
+        next_reset_local = today_reset + timedelta(days=1)
+
+    return window_start_local.astimezone(pytz.utc), next_reset_local.astimezone(pytz.utc)
 
 
 @router.get("/feed")
@@ -24,222 +51,337 @@ def get_job_feed(
     user: dict = Depends(get_current_user)
 ):
     """
-    Returns jobs scored and sorted by match, excluding jobs already swiped.
-    Seniority = hard filter. Scoring = skill overlap + domain + job type.
-    Sorted by posted_at DESC after scoring (recency = sort, not score).
+    Returns jobs for today's personalized batch.
+
+    First request after the daily reset (08:00 Africa/Casablanca) triggers
+    batch generation: scores + ranks up to DAILY_BATCH_SIZE jobs and persists
+    them to daily_feed_batch_items. Subsequent requests within the same window
+    read the pre-ranked batch — no re-scoring until tomorrow.
+
+    Response includes:
+      remaining_today  — unswiped jobs left in today's batch
+      next_reset_at    — ISO-8601 UTC timestamp of next 08:00 reset
+      batch_exhausted  — true when remaining_today == 0
     """
     try:
+        supabase = get_supabase()
         user_id = user["id"]
         prefs = user.get("preferences") or {}
-        user_skills = user.get("extracted_skills") or []
-        if not user_skills and prefs:
-            user_skills = list(prefs.get("keywords") or []) + list(prefs.get("domains") or [])
 
-        # Quality assessment & Mode detection
-        profile_quality = assess_profile_quality(user)
-        is_generic_feed = profile_quality in ["empty", "weak"]
-        stats = {"scored": 0, "after_min_score": 0, "reranked": 0, "reranker_latency_ms": 0}
+        # --- Step 1: determine today's window ---
+        window_start_utc, next_reset_utc = get_batch_window()
+        window_start_iso = window_start_utc.isoformat()
+        next_reset_iso = next_reset_utc.isoformat()
 
-        # 1. Exclude swiped jobs
-        swipes_res = get_supabase().table("swipes").select("job_id").eq("user_id", user_id).execute()
+        # --- Step 2: always fetch today's swiped IDs (source of truth) ---
+        swipes_res = supabase.table("swipes").select("job_id").eq("user_id", user_id).execute()
         swiped_ids = set(s["job_id"] for s in swipes_res.data)
 
-        # 2. Build query with filters
-        min_posted_at = (datetime.utcnow() - timedelta(days=JOB_MAX_AGE_DAYS)).isoformat()
-        query = (
-            get_supabase()
-            .table("jobs")
-            .select("*")
-            .eq("is_active", True)
-            .gte("posted_at", min_posted_at)
-            .not_.is_("apply_url", "null")
+        # --- Step 3: look up (or create) today's batch ---
+        batch = None
+        batch_res = (
+            supabase.table("daily_feed_batches")
+            .select("id, batch_size, is_exhausted")
+            .eq("user_id", user_id)
+            .eq("window_start", window_start_iso)
+            .limit(1)
+            .execute()
         )
+        if batch_res.data:
+            batch = batch_res.data[0]
 
-        # Geography + eligibility filter
-        user_geography = (prefs.get("geography") or "").lower()
-        eligibility = build_eligibility_filter(user)
+        # --- Step 4: if no batch exists, generate one now (lazy) ---
+        if batch is None:
+            print(f"[feed] generating new batch for user_id={user_id}, window={window_start_iso}")
 
-        if "or" in eligibility:
-            # DISCOVERY MODE: Allow NULL for globally_accessible because most job postings 
-            # do not explicitly confirm international eligibility. We only exclude 
-            # if excludes_morocco was explicitly set to True by the LLM.
-            query = query.or_("job_region.eq.MA,globally_accessible.eq.true,globally_accessible.is.null")
-        elif "job_region" in eligibility:
-            query = query.eq("job_region", eligibility["job_region"])
-        else:
-            # International candidates: Allow NULL for both fields to avoid an empty feed.
-            if eligibility.get("globally_accessible"):
-                query = query.or_("globally_accessible.eq.true,globally_accessible.is.null")
-            if eligibility.get("open_to_intl"):
-                query = query.or_("open_to_intl.eq.true,open_to_intl.is.null")
-            if eligibility.get("remote_type"):
-                query = query.eq("remote_type", eligibility["remote_type"])
+            user_skills = user.get("extracted_skills") or []
+            if not user_skills and prefs:
+                user_skills = list(prefs.get("keywords") or []) + list(prefs.get("domains") or [])
 
-        # Seniority: strict hard filter.
-        # Source of truth = preferences.seniority (user's explicit onboarding choice).
-        # user.experience_level is CV-parsed metadata only — never used for feed filtering.
-        # Default = 'mid' (product default, not derived from CV).
-        onboarding_seniority = (prefs.get("seniority") or "").lower().strip()
-        user_seniority = onboarding_seniority if onboarding_seniority else "mid"
-        
-        cv_parsed_seniority = (user.get("parsed_experience_level") or "").lower().strip()
-        allowed_levels = get_seniority_filter(user_seniority)
-        if allowed_levels:
-            query = query.or_(
-                "experience_level.is.null," +
-                ",".join(f"experience_level.eq.{lvl}" for lvl in allowed_levels)
+            profile_quality = assess_profile_quality(user)
+            is_generic_feed = profile_quality in ["empty", "weak"]
+            stats = {"scored": 0, "after_min_score": 0, "reranked": 0, "reranker_latency_ms": 0}
+
+            # Fetch candidates
+            min_posted_at = (datetime.utcnow() - timedelta(days=JOB_MAX_AGE_DAYS)).isoformat()
+            query = (
+                supabase.table("jobs")
+                .select("*")
+                .eq("is_active", True)
+                .gte("posted_at", min_posted_at)
+                .not_.is_("apply_url", "null")
             )
 
-        # Job type filter
-        user_job_types = prefs.get("job_type") or []
-        if user_job_types:
-            job_type_filter = "job_type.is.null," + ",".join(
-                f"job_type.eq.{t.lower()}" for t in user_job_types
-            )
-            query = query.or_(job_type_filter)
+            user_geography = (prefs.get("geography") or "").lower()
+            eligibility = build_eligibility_filter(user)
 
-        FEED_FETCH_LIMIT = 1000
-        query = query.limit(FEED_FETCH_LIMIT).order("posted_at", desc=True)
-        
-        jobs_res = query.execute()
-        raw_jobs = jobs_res.data or []
-        print(f"[feed] raw_jobs={len(raw_jobs)} for user_id={user_id}, page={page}, limit={limit}")
-
-        # 3. Exclude swiped, deduplicate
-        seen_title_company: set = set()
-        candidate_jobs = []
-        for j in raw_jobs:
-            if j["id"] in swiped_ids:
-                print(f"[feed] exclusion: dropped {j['id']} - already swiped")
-                continue
-            
-            apply_url = (j.get("apply_url") or "").strip()
-            if not apply_url.startswith(("http://", "https://")):
-                print(f"[feed] exclusion: dropped {j['id']} - invalid apply_url '{apply_url}'")
-                continue
-                
-            dedup_key = (
-                (j.get("title") or "").strip().lower(),
-                (j.get("company") or "").strip().lower(),
-            )
-            if dedup_key in seen_title_company:
-                print(f"[feed] exclusion: dropped {j['id']} - duplicate key {dedup_key}")
-                continue
-                
-            seen_title_company.add(dedup_key)
-            candidate_jobs.append(j)
-
-        print(f"[feed] candidate_jobs_after_exclusions={len(candidate_jobs)} (before domain filter)")
-
-        # 4. Domain filter
-        user_domains = prefs.get("domains") or []
-        if user_domains:
-            domain_kws: set[str] = set()
-            for d in user_domains:
-                for kw in DOMAIN_KEYWORDS.get(d, [d.lower()]):
-                    domain_kws.add(kw.lower())
-
-            def _matches_user_domain(job: dict) -> bool:
-                text = " ".join([
-                    (job.get("title") or "").lower(),
-                    " ".join(job.get("required_skills") or []).lower(),
-                    (job.get("category") or "").lower(),
-                    (job.get("subcategory") or "").lower(),
-                    (job.get("description_text") or "")[:1200].lower(),
-                ])
-                return any(kw in text for kw in domain_kws)
-
-            domain_filtered = [j for j in candidate_jobs if _matches_user_domain(j)]
-            if len(domain_filtered) == 0 and len(candidate_jobs) > 0:
-                print(f"[feed] candidate_jobs_after_domain_filter=0 (FALLBACK triggered: using {len(candidate_jobs)} pre-filter jobs)")
+            if "or" in eligibility:
+                query = query.or_("job_region.eq.MA,globally_accessible.eq.true,globally_accessible.is.null")
+            elif "job_region" in eligibility:
+                query = query.eq("job_region", eligibility["job_region"])
             else:
-                candidate_jobs = domain_filtered
-                print(f"[feed] candidate_jobs_after_domain_filter={len(candidate_jobs)}")
+                if eligibility.get("globally_accessible"):
+                    query = query.or_("globally_accessible.eq.true,globally_accessible.is.null")
+                if eligibility.get("open_to_intl"):
+                    query = query.or_("open_to_intl.eq.true,open_to_intl.is.null")
+                if eligibility.get("remote_type"):
+                    query = query.eq("remote_type", eligibility["remote_type"])
 
-        # 5. Resolve user embedding
-        scoring_user = user # Use shared object by default
-        try:
-            if user.get("cv_embedding"):
-                pass 
+            onboarding_seniority = (prefs.get("seniority") or "").lower().strip()
+            user_seniority = onboarding_seniority if onboarding_seniority else "mid"
+            allowed_levels = get_seniority_filter(user_seniority)
+            if allowed_levels:
+                query = query.or_(
+                    "experience_level.is.null," +
+                    ",".join(f"experience_level.eq.{lvl}" for lvl in allowed_levels)
+                )
+
+            user_job_types = prefs.get("job_type") or []
+            if user_job_types:
+                job_type_filter = "job_type.is.null," + ",".join(
+                    f"job_type.eq.{t.lower()}" for t in user_job_types
+                )
+                query = query.or_(job_type_filter)
+
+            FEED_FETCH_LIMIT = 1000
+            query = query.limit(FEED_FETCH_LIMIT).order("posted_at", desc=True)
+            raw_jobs = query.execute().data or []
+            print(f"[feed] raw_jobs={len(raw_jobs)} for batch generation")
+
+            # Exclude swiped + deduplicate
+            seen_title_company: set = set()
+            candidate_jobs = []
+            for j in raw_jobs:
+                if j["id"] in swiped_ids:
+                    continue
+                apply_url = (j.get("apply_url") or "").strip()
+                if not apply_url.startswith(("http://", "https://")):
+                    continue
+                dedup_key = (
+                    (j.get("title") or "").strip().lower(),
+                    (j.get("company") or "").strip().lower(),
+                )
+                if dedup_key in seen_title_company:
+                    continue
+                seen_title_company.add(dedup_key)
+                candidate_jobs.append(j)
+
+            # Domain filter
+            user_domains = prefs.get("domains") or []
+            if user_domains:
+                domain_kws: set = set()
+                for d in user_domains:
+                    for kw in DOMAIN_KEYWORDS.get(d, [d.lower()]):
+                        domain_kws.add(kw.lower())
+
+                def _matches_user_domain(job: dict) -> bool:
+                    text = " ".join([
+                        (job.get("title") or "").lower(),
+                        " ".join(job.get("required_skills") or []).lower(),
+                        (job.get("category") or "").lower(),
+                        (job.get("subcategory") or "").lower(),
+                        (job.get("description_text") or "")[:1200].lower(),
+                    ])
+                    return any(kw in text for kw in domain_kws)
+
+                domain_filtered = [j for j in candidate_jobs if _matches_user_domain(j)]
+                if domain_filtered:
+                    candidate_jobs = domain_filtered
+
+            # Resolve embedding
+            scoring_user = user
+            try:
+                if not user.get("cv_embedding"):
+                    profile_text = build_user_profile_text_from_user(user)
+                    if profile_text:
+                        model = get_embedding_model()
+                        user_embedding = model.encode(profile_text).tolist()
+                        scoring_user = user.copy()
+                        scoring_user["cv_embedding"] = user_embedding
+                        try:
+                            supabase.table("users").update({"cv_embedding": user_embedding}).eq("id", user_id).execute()
+                        except Exception as e:
+                            print(f"[feed] Error saving lazy CV embedding: {e}")
+            except Exception:
+                pass
+
+            # Score
+            scored_jobs = []
+            for job in candidate_jobs:
+                scores = score_job_for_user(job, scoring_user, is_generic_feed=is_generic_feed)
+                job.update(scores)
+                job["match_score"] = scores["fit_score"]
+                scored_jobs.append(job)
+
+            stats["scored"] = len(scored_jobs)
+
+            if is_generic_feed:
+                strict_jobs = scored_jobs
             else:
-                profile_text = build_user_profile_text_from_user(user)
-                if profile_text:
-                    model = get_embedding_model()
-                    user_embedding = model.encode(profile_text).tolist()
-                    
-                    # Create a shallow local copy for the current request's scoring
-                    scoring_user = user.copy()
-                    scoring_user["cv_embedding"] = user_embedding
-                    
-                    try:
-                        get_supabase().table("users").update({"cv_embedding": user_embedding}).eq("id", user_id).execute()
-                    except Exception as e:
-                        print(f"[feed] Error saving lazy CV embedding: {e}")
-        except Exception:
-            pass
+                strict_jobs = [j for j in scored_jobs if float(j.get("fit_score") or 0) >= MIN_FEED_SCORE]
 
-        # 6. Score
-        scored_jobs = []
-        for job in candidate_jobs:
-            scores = score_job_for_user(job, scoring_user, is_generic_feed=is_generic_feed)
-            job.update(scores)
-            job["match_score"] = scores["fit_score"]
-            scored_jobs.append(job)
+            stats["after_min_score"] = len(strict_jobs)
 
-        # 7. Filter and sort
-        if is_generic_feed:
-            strict_jobs = scored_jobs
-        else:
-            strict_jobs = [j for j in scored_jobs if float(j.get("fit_score") or 0) >= MIN_FEED_SCORE]
-            
-        stats["scored"] = len(scored_jobs)
-        stats["after_min_score"] = len(strict_jobs)
-        
-        for j in strict_jobs:
-            j["final_sort_score"] = j["rank_score"]
-        
-        strict_jobs.sort(
-            key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""),
-            reverse=True,
-        )
+            for j in strict_jobs:
+                j["final_sort_score"] = j["rank_score"]
 
-        # Apply Multilingual Top-K Reranking (Phase 9)
-        from services.reranker import rerank_pairs, RERANK_TOP_K
-        
-        if not is_generic_feed and len(strict_jobs) > 0:
-            user_text_for_rerank = build_user_profile_text_from_user(user)
-            if user_text_for_rerank:
-                user_snippet = user_text_for_rerank[:1000]  # truncate to stay < 512 tokens
-                top_finalists = strict_jobs[:RERANK_TOP_K]
-                pairs = []
-                for j in top_finalists:
-                    job_desc = (j.get("description_text") or "")[:800]
-                    job_title = j.get("title") or ""
-                    pairs.append((user_snippet, f"{job_title}. {job_desc}"))
-                
-                # 4s timeout; L6 model does 15 pairs in ~1-2s on CPU
-                result = rerank_pairs(pairs, timeout_seconds=4.0)
-                if result is not None:
-                    rerank_scores, rerank_latency_ms = result
-                    if len(rerank_scores) == len(top_finalists):
-                        for j, score in zip(top_finalists, rerank_scores):
-                            j["reranker_score"] = score
-                            j["final_sort_score"] = float(j.get("rank_score", 0)) + float(score) * 2.5
-                        
-                        top_finalists.sort(
-                            key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""), 
-                            reverse=True
-                        )
-                        strict_jobs[:RERANK_TOP_K] = top_finalists
-                        stats["reranked"] = len(top_finalists)
-                        stats["reranker_latency_ms"] = round(rerank_latency_ms, 1)
+            strict_jobs.sort(
+                key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""),
+                reverse=True,
+            )
+
+            # Reranker
+            from services.reranker import rerank_pairs, RERANK_TOP_K
+            if not is_generic_feed and len(strict_jobs) > 0:
+                user_text_for_rerank = build_user_profile_text_from_user(user)
+                if user_text_for_rerank:
+                    user_snippet = user_text_for_rerank[:1000]
+                    top_finalists = strict_jobs[:RERANK_TOP_K]
+                    pairs = []
+                    for j in top_finalists:
+                        job_desc = (j.get("description_text") or "")[:800]
+                        job_title = j.get("title") or ""
+                        pairs.append((user_snippet, f"{job_title}. {job_desc}"))
+                    result = rerank_pairs(pairs, timeout_seconds=4.0)
+                    if result is not None:
+                        rerank_scores, rerank_latency_ms = result
+                        if len(rerank_scores) == len(top_finalists):
+                            for j, score in zip(top_finalists, rerank_scores):
+                                j["reranker_score"] = score
+                                j["final_sort_score"] = float(j.get("rank_score", 0)) + float(score) * 2.5
+                            top_finalists.sort(
+                                key=lambda x: (float(x.get("final_sort_score") or 0), x.get("posted_at") or ""),
+                                reverse=True
+                            )
+                            strict_jobs[:RERANK_TOP_K] = top_finalists
+                            stats["reranked"] = len(top_finalists)
+                            stats["reranker_latency_ms"] = round(rerank_latency_ms, 1)
+
+            # Take top DAILY_BATCH_SIZE
+            batch_candidates = strict_jobs[:DAILY_BATCH_SIZE]
+            actual_batch_size = len(batch_candidates)
+
+            # Persist batch header — UNIQUE constraint handles race conditions
+            try:
+                batch_insert = supabase.table("daily_feed_batches").insert({
+                    "user_id": user_id,
+                    "window_start": window_start_iso,
+                    "next_reset_at": next_reset_iso,
+                    "batch_size": actual_batch_size if actual_batch_size > 0 else 1,
+                    "timezone": "Africa/Casablanca",
+                    "is_exhausted": False,
+                }).execute()
+                batch = batch_insert.data[0]
+            except Exception as insert_err:
+                # Race: another request already created the batch — fetch it
+                if "23505" in str(insert_err) or "unique" in str(insert_err).lower():
+                    print(f"[feed] race: batch already exists, fetching...")
+                    batch_res2 = (
+                        supabase.table("daily_feed_batches")
+                        .select("id, batch_size, is_exhausted")
+                        .eq("user_id", user_id)
+                        .eq("window_start", window_start_iso)
+                        .limit(1)
+                        .execute()
+                    )
+                    batch = batch_res2.data[0] if batch_res2.data else None
+                    batch_candidates = []  # Don't write items — other request already will
                 else:
-                    stats["reranked"] = 0
-                    stats["reranker_latency_ms"] = "timeout"
+                    raise insert_err
+
+            # Persist batch items (only when we created the batch)
+            if batch and batch_candidates:
+                items = [
+                    {
+                        "batch_id": batch["id"],
+                        "job_id": j["id"],
+                        "rank": idx + 1,
+                        "fit_score": round(float(j.get("fit_score") or 0), 4),
+                    }
+                    for idx, j in enumerate(batch_candidates)
+                ]
+                try:
+                    supabase.table("daily_feed_batch_items").insert(items).execute()
+                except Exception as e:
+                    print(f"[feed] Warning: failed to insert batch items: {e}")
+
+            print(f"[feed] batch generated: size={actual_batch_size} user_id={user_id} stats={stats}")
+
+        # --- Step 5: read from the persisted batch ---
+        if batch is None:
+            # Fallback: empty state (should never happen in practice)
+            return {
+                "page": page, "limit": limit,
+                "total_available": 0, "total_returned": 0,
+                "remaining_today": 0,
+                "next_reset_at": next_reset_iso,
+                "batch_exhausted": True,
+                "jobs": [],
+            }
+
+        # Fast-path: batch already exhausted
+        if batch.get("is_exhausted"):
+            return {
+                "page": page, "limit": limit,
+                "total_available": 0, "total_returned": 0,
+                "remaining_today": 0,
+                "next_reset_at": next_reset_iso,
+                "batch_exhausted": True,
+                "jobs": [],
+            }
+
+        # Fetch all batch items in rank order
+        items_res = (
+            supabase.table("daily_feed_batch_items")
+            .select("job_id, rank, fit_score")
+            .eq("batch_id", batch["id"])
+            .order("rank", desc=False)
+            .execute()
+        )
+        all_items = items_res.data or []
+
+        # Remaining = batch items not yet swiped
+        unswiped_items = [it for it in all_items if it["job_id"] not in swiped_ids]
+        remaining_today = len(unswiped_items)
+
+        # Lazily mark exhausted once all items consumed
+        if remaining_today == 0 and not batch.get("is_exhausted"):
+            try:
+                supabase.table("daily_feed_batches").update({"is_exhausted": True}).eq("id", batch["id"]).execute()
+            except Exception:
+                pass
+            return {
+                "page": page, "limit": limit,
+                "total_available": 0, "total_returned": 0,
+                "remaining_today": 0,
+                "next_reset_at": next_reset_iso,
+                "batch_exhausted": True,
+                "jobs": [],
+            }
+
+        # Page through unswiped items
         start_idx = (page - 1) * limit
         end_idx = start_idx + limit
-        paginated_jobs = strict_jobs[start_idx:end_idx]
+        page_items = unswiped_items[start_idx:end_idx]
+        page_job_ids = [it["job_id"] for it in page_items]
+        fit_score_map = {it["job_id"]: it["fit_score"] for it in page_items}
 
+        # Fetch full job rows for this page
+        if not page_job_ids:
+            return {
+                "page": page, "limit": limit,
+                "total_available": remaining_today,
+                "total_returned": 0,
+                "remaining_today": remaining_today,
+                "next_reset_at": next_reset_iso,
+                "batch_exhausted": False,
+                "jobs": [],
+            }
+
+        jobs_res = supabase.table("jobs").select("*").in_("id", page_job_ids).execute()
+        jobs_by_id = {j["id"]: j for j in (jobs_res.data or [])}
+
+        # Re-attach scoring context and preserve batch rank order
         ALLOWED_JOB_FIELDS = {
             "id", "title", "company", "company_logo_url", "location", "city",
             "country_code", "is_remote", "type", "job_type", "posted_at",
@@ -248,23 +390,38 @@ def get_job_feed(
         }
 
         filtered_jobs = []
-        for j in paginated_jobs:
-            filtered_jobs.append({k: v for k, v in j.items() if k in ALLOWED_JOB_FIELDS})
+        for job_id in page_job_ids:
+            job = jobs_by_id.get(job_id)
+            if not job:
+                continue
+            # Attach snapshot score from batch so frontend sees a stable value
+            job["match_score"] = round(fit_score_map.get(job_id, 0) * 100, 1)
+            # Run scoring for matched_skills / missing_skills display only
+            scores = score_job_for_user(job, user)
+            job["matched_skills"] = scores.get("matched_skills", [])
+            job["missing_skills"] = scores.get("missing_skills", [])
+            filtered_jobs.append({k: v for k, v in job.items() if k in ALLOWED_JOB_FIELDS})
 
         has_cv = bool(user.get("cv_embedding"))
-        
-        print(f"[feed] user_id={user_id} profile_quality={profile_quality} mode={'generic' if is_generic_feed else 'personalized'} stats={stats}")
+        print(f"[feed] served page={page} remaining={remaining_today} batch_id={batch['id']} user_id={user_id}")
+
         return {
             "page": page,
             "limit": limit,
-            "total_available": len(strict_jobs),
+            "total_available": remaining_today,
             "total_returned": len(filtered_jobs),
-            "geography_mode": user_geography or "both",
+            "remaining_today": remaining_today,
+            "next_reset_at": next_reset_iso,
+            "batch_exhausted": False,
             "jobs": filtered_jobs,
         }
+
     except Exception as e:
-        print(f"[feed] INTERNAL ERROR: {e}")
+        import traceback
+        print(f"[feed] INTERNAL ERROR: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Internal Feed Error: {str(e)}")
+
+
 
 
 @router.get("/search")

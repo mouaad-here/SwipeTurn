@@ -15,8 +15,6 @@ import Animated, { Extrapolation, FadeIn, interpolate, runOnJS, SlideOutLeft, Sl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/appStore';
 
-const FEED_CACHE_KEY = 'swipeturn_feed_cache';
-const FEED_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PAGE_SIZE = 20;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -204,7 +202,9 @@ export default function SwipeScreen() {
     const [isFetchingMore, setIsFetchingMore] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
-    const [geographyMode, setGeographyMode] = useState<string>('both');
+    const [remainingToday, setRemainingToday] = useState<number | null>(null);
+    const [nextResetAt, setNextResetAt] = useState<string | null>(null);
+    const [batchExhausted, setBatchExhausted] = useState(false);
     const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
     const snapPoints = React.useMemo(() => ['85%', '100%'], []);
     const [selectedJob, setSelectedJob] = useState<any>(null);
@@ -218,49 +218,11 @@ export default function SwipeScreen() {
         bottomSheetModalRef.current?.present();
     };
 
-    const checkMorningRefresh = async () => {
-        try {
-            const lastRefresh = await AsyncStorage.getItem('swipeturn_morning_refresh_date');
-            const now = new Date();
-            const todayStr = now.toLocaleDateString();
-            
-            if (now.getHours() >= 9 && lastRefresh !== todayStr) {
-                await AsyncStorage.setItem('swipeturn_morning_refresh_date', todayStr);
-                await AsyncStorage.removeItem(FEED_CACHE_KEY);
-                return true;
-            }
-        } catch (_) {}
-        return false;
-    };
-
+    // Load feed once on mount
     useEffect(() => {
         if (feedLoadedRef.current) return;
         feedLoadedRef.current = true;
-        (async () => {
-            const forceRefresh = await checkMorningRefresh();
-            if (!forceRefresh) {
-                try {
-                    const raw = await AsyncStorage.getItem(FEED_CACHE_KEY);
-                    if (raw) {
-                        const parsed = JSON.parse(raw) as { jobs?: any[]; geographyMode?: string; timestamp?: number };
-                        if (parsed?.jobs?.length && parsed.timestamp && Date.now() - parsed.timestamp < FEED_CACHE_TTL_MS) {
-                            const seenCache = new Set<string>();
-                            const dedupedJobs = (parsed.jobs as any[]).filter(j => {
-                                if (!j?.id || seenCache.has(j.id)) return false;
-                                seenCache.add(j.id);
-                                return true;
-                            });
-                            setFeed(dedupedJobs);
-                            setGeographyMode(parsed.geographyMode || 'both');
-                            setLoading(false);
-                            loadFeed(1, false, true);
-                            return;
-                        }
-                    }
-                } catch (_) { }
-            }
-            await loadFeed(1);
-        })();
+        loadFeed(1);
     }, []);
 
     const renderFooter = React.useCallback(
@@ -301,16 +263,8 @@ export default function SwipeScreen() {
     // reflected in the recommendations.
     useFocusEffect(
         React.useCallback(() => {
-            (async () => {
-                const forceRefresh = await checkMorningRefresh();
-                if (forceRefresh) {
-                    setPage(1);
-                    setHasMore(true);
-                    await loadFeed(1, false, false);
-                } else {
-                    loadFeed(1, false, true);
-                }
-            })();
+            // Batch window is server-driven; just reload page 1 silently on focus
+            loadFeed(1, false, true);
         }, [])
     );
 
@@ -375,10 +329,18 @@ export default function SwipeScreen() {
             setError(null);
             const data = await response.json();
             const rawJobs = Array.isArray(data.jobs) ? data.jobs : [];
-            const geographyMode = data.geography_mode || 'both';
+
+            // Consume new batch fields from API
+            const batchExhaustedFromApi = !!data.batch_exhausted;
+            const remainingFromApi = typeof data.remaining_today === 'number' ? data.remaining_today : null;
+            const nextResetFromApi = data.next_reset_at || null;
             const totalReturned = data.total_returned || 0;
 
-            const isExhausted = totalReturned < PAGE_SIZE || totalReturned === 0;
+            setBatchExhausted(batchExhaustedFromApi);
+            if (remainingFromApi !== null) setRemainingToday(remainingFromApi);
+            if (nextResetFromApi) setNextResetAt(nextResetFromApi);
+
+            const isExhausted = batchExhaustedFromApi || totalReturned === 0;
 
             const mappedJobs = rawJobs.map((job: any) => {
                 const matched = Array.isArray(job.matched_skills) ? job.matched_skills : [];
@@ -410,10 +372,8 @@ export default function SwipeScreen() {
                 };
             });
 
-            // metadata state updated outside the feed setter
             setPage(targetPage);
             setHasMore(!isExhausted);
-            setGeographyMode(geographyMode);
 
             // pure setFeed
             setFeed(prev => {
@@ -483,23 +443,24 @@ export default function SwipeScreen() {
 
 
 
-    // Auto-pagination effect
+    // Auto-pagination effect — only fetch more if batch is not exhausted
     useEffect(() => {
-        if (feed.length > 0 && feed.length <= 5 && hasMore && !isFetchingRef.current && !loading) {
+        if (feed.length > 0 && feed.length <= 5 && hasMore && !batchExhausted && !isFetchingRef.current && !loading) {
             loadFeed(page + 1, true, true);
         }
-    }, [feed.length, hasMore, page, loading]);
+    }, [feed.length, hasMore, batchExhausted, page, loading]);
 
-    // Cache persistence effect
-    useEffect(() => {
-        if (feed.length > 0) {
-            AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({
-                jobs: feed,
-                geographyMode,
-                timestamp: Date.now(),
-            })).catch(() => {});
-        }
-    }, [feed, geographyMode]);
+    const formatCountdown = (isoString: string | null): string => {
+        if (!isoString) return 'tomorrow at 8 AM';
+        try {
+            const diff = new Date(isoString).getTime() - Date.now();
+            if (diff <= 0) return 'soon';
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            if (h === 0) return `${m}m`;
+            return `${h}h ${m}m`;
+        } catch { return 'tomorrow at 8 AM'; }
+    };
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
@@ -508,6 +469,14 @@ export default function SwipeScreen() {
                     <Ionicons name="cloud-offline-outline" size={64} color={COLORS.accent} />
                     <Text style={styles.emptyTitle}>Connection Issue</Text>
                     <Text style={styles.emptySubtitle}>{error}</Text>
+                </>
+            ) : batchExhausted ? (
+                <>
+                    <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
+                    <Text style={styles.emptyTitle}>You're all caught up!</Text>
+                    <Text style={styles.emptySubtitle}>
+                        New jobs arrive in {formatCountdown(nextResetAt)}.
+                    </Text>
                 </>
             ) : (
                 <>
@@ -521,6 +490,7 @@ export default function SwipeScreen() {
                 onPress={() => {
                     setHasMore(true);
                     setError(null);
+                    setBatchExhausted(false);
                     loadFeed(1, false, false);
                 }}
             >
