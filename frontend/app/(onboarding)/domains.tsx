@@ -2,7 +2,7 @@ import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator'
 import { COLORS } from '@/constants/colors';
 import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -28,6 +28,9 @@ export const CATEGORIES: { id: string; label: string; subcategories: string[] }[
 
 export default function DomainsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const isEditing = params.mode === 'edit';
+
   const insets = useSafeAreaInsets();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
@@ -52,23 +55,45 @@ export default function DomainsScreen() {
   };
 
   const handleSkip = () => {
-    router.push('/(onboarding)/skills');
+    if (isEditing) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/preview');
+    } else {
+      router.push('/(onboarding)/skills');
+    }
   };
 
   const handleContinue = async () => {
     const domainLabels = selectedCategories.map(
       (id) => CATEGORIES.find((c) => c.id === id)?.label ?? id
     );
-    await saveDraftStep({ domains: domainLabels });
 
-    // If any selected domain has subcategories, go to the subcategories screen
-    const hasSubcategories = selectedCategories.some(
-      id => CATEGORIES.find(c => c.id === id)?.subcategories?.length ?? 0 > 0
+    // Prune subcategories that no longer belong to the selected domains.
+    // Prevents stale subs from boosting unrelated jobs in the matching engine.
+    const validSubs = new Set(
+      selectedCategories.flatMap(
+        (id) => CATEGORIES.find((c) => c.id === id)?.subcategories ?? []
+      )
     );
-    if (selectedCategories.length > 0 && hasSubcategories) {
-      router.push('/(onboarding)/subcategories');
+    const currentDraft = await getDraft();
+    const prunedSubs = (currentDraft.subcategories ?? []).filter((s) => validSubs.has(s));
+
+    await saveDraftStep({ domains: domainLabels, subcategories: prunedSubs });
+
+    if (isEditing) {
+      // When editing from Preview, go straight back — subcategories already pruned above
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/preview');
     } else {
-      router.push('/(onboarding)/skills');
+      // Normal flow: go to subcategories if any selected domain has them
+      const hasSubcategories = selectedCategories.some(
+        id => (CATEGORIES.find(c => c.id === id)?.subcategories?.length ?? 0) > 0
+      );
+      if (selectedCategories.length > 0 && hasSubcategories) {
+        router.push('/(onboarding)/subcategories');
+      } else {
+        router.push('/(onboarding)/skills');
+      }
     }
   };
 
@@ -122,7 +147,7 @@ export default function DomainsScreen() {
       <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
         <Pressable style={styles.continueButton} onPress={handleContinue}>
           <Text style={styles.continueText}>
-            {selectedCategories.length > 0 ? 'Choose Subcategories →' : 'Skip & Continue'}
+            {isEditing ? 'Save' : (selectedCategories.length > 0 ? 'Choose Subcategories →' : 'Skip & Continue')}
           </Text>
         </Pressable>
       </View>

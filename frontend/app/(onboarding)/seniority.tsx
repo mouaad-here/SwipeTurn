@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -23,6 +23,9 @@ const SENIORITY_OPTIONS = [
 
 export default function SeniorityScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const isEditing = params.mode === 'edit';
+
   const insets = useSafeAreaInsets();
   const [seniority, setSeniority] = useState<string | null>(null);
 
@@ -36,13 +39,23 @@ export default function SeniorityScreen() {
   }, [loadDraft]);
 
   const handleSkip = () => {
-    router.push('/(onboarding)/job-type');
+    if (isEditing) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/preview');
+    } else {
+      router.push('/(onboarding)/job-type');
+    }
   };
 
   const handleContinue = async () => {
     if (!seniority) return;
     await saveDraftStep({ seniority });
-    router.push('/(onboarding)/job-type');
+    if (isEditing) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/preview');
+    } else {
+      router.push('/(onboarding)/job-type');
+    }
   };
 
   return (
@@ -106,7 +119,7 @@ export default function SeniorityScreen() {
           disabled={!seniority}
           onPress={handleContinue}
         >
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>{isEditing ? 'Save' : 'Continue'}</Text>
         </Pressable>
       </View>
     </View>

@@ -2,7 +2,7 @@ import { OnboardingStepIndicator } from '@/components/onboarding-step-indicator'
 import { COLORS } from '@/constants/colors';
 import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -28,6 +28,9 @@ const RELOCATION_OPTIONS = [
 
 export default function GeographyScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const isEditing = params.mode === 'edit';
+
   const insets = useSafeAreaInsets();
   const [geography, setGeography] = useState<string | null>(null);
   const [relocationPreference, setRelocationPreference] = useState<
@@ -62,7 +65,15 @@ export default function GeographyScreen() {
         ? relocationPreference!
         : undefined,
     });
-    router.push('/(onboarding)/seniority');
+    if (isEditing) {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(onboarding)/preview');
+      }
+    } else {
+      router.push('/(onboarding)/seniority');
+    }
   };
 
   return (
@@ -147,7 +158,7 @@ export default function GeographyScreen() {
           disabled={!canContinue}
           onPress={handleContinue}
         >
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>{isEditing ? 'Save' : 'Continue'}</Text>
         </Pressable>
       </View>
     </View>

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -17,6 +17,9 @@ import { getDraft, saveDraftStep } from '@/lib/onboarding-storage';
 
 export default function SkillsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const isEditing = params.mode === 'edit';
+
   const insets = useSafeAreaInsets();
   const [skills, setSkills] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -43,12 +46,22 @@ export default function SkillsScreen() {
   };
 
   const handleSkip = () => {
-    router.push('/(onboarding)/preview');
+    if (isEditing) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/preview');
+    } else {
+      router.push('/(onboarding)/preview');
+    }
   };
 
   const handleContinue = async () => {
     await saveDraftStep({ keywords: skills });
-    router.push('/(onboarding)/preview');
+    if (isEditing) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/preview');
+    } else {
+      router.push('/(onboarding)/preview');
+    }
   };
 
   return (
@@ -112,7 +125,7 @@ export default function SkillsScreen() {
 
       <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
         <Pressable style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>{isEditing ? 'Save' : 'Continue'}</Text>
         </Pressable>
       </View>
     </View>

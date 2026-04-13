@@ -268,22 +268,22 @@ export default function PreviewScreen() {
           {cvError ? <Text style={styles.cvErrorText}>{cvError}</Text> : null}
         </View>
 
-        <SectionCard label="Geography" onEdit={() => router.push('/(onboarding)/geography')}>
+        <SectionCard label="Geography" onEdit={() => router.push({ pathname: '/(onboarding)/geography', params: { mode: 'edit' } })}>
           <Text style={styles.sectionValue}>
             {geographyText}
             {relocationText ? ` • ${relocationText}` : ''}
           </Text>
         </SectionCard>
 
-        <SectionCard label="Seniority" onEdit={() => router.push('/(onboarding)/seniority')}>
+        <SectionCard label="Seniority" onEdit={() => router.push({ pathname: '/(onboarding)/seniority', params: { mode: 'edit' } })}>
           <Text style={styles.sectionValue}>{seniorityText}</Text>
         </SectionCard>
 
-        <SectionCard label="Job types" onEdit={() => router.push('/(onboarding)/job-type')}>
+        <SectionCard label="Job types" onEdit={() => router.push({ pathname: '/(onboarding)/job-type', params: { mode: 'edit' } })}>
           <Text style={styles.sectionValue}>{jobTypesText}</Text>
         </SectionCard>
 
-        <SectionCard label="Domains & subcategories" onEdit={() => router.push('/(onboarding)/domains')}>
+        <SectionCard label="Domains & subcategories" onEdit={() => router.push({ pathname: '/(onboarding)/domains', params: { mode: 'edit' } })}>
           {domainsList.length > 0 ? (
             <View style={styles.skillsChipWrap}>
               {domainsList.map((d, i) => (
@@ -297,7 +297,7 @@ export default function PreviewScreen() {
           )}
         </SectionCard>
 
-        <SectionCard label="Skills & keywords" onEdit={() => router.push('/(onboarding)/skills')}>
+        <SectionCard label="Skills & keywords" onEdit={() => router.push({ pathname: '/(onboarding)/skills', params: { mode: 'edit' } })}>
           {skillsList.length > 0 ? (
             <View style={styles.skillsChipWrap}>
               {skillsList.map((s, i) => (
