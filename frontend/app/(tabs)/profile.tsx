@@ -290,8 +290,9 @@ export default function ProfileScreen() {
     };
 
     const displayEmail = clerkUser?.primaryEmailAddress?.emailAddress || user?.email || '';
-    const nameStr = user?.name || clerkUser?.fullName;
-    const displayName = (nameStr && nameStr.trim()) ? nameStr.trim() : (displayEmail ? displayEmail.split('@')[0] : 'Guest');
+    // Priority: Clerk-verified full name → backend name → email local-part → 'Guest'
+    const nameStr = (clerkUser?.fullName?.trim()) || (user?.name?.trim());
+    const displayName = nameStr || (displayEmail ? displayEmail.split('@')[0] : 'Guest');
     const score = user?.profile_score ?? 0;
     const skills = user?.extracted_skills || [];
     const keywords = user?.preferences?.keywords || [];

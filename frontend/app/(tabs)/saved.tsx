@@ -1,6 +1,7 @@
 import { API_URL } from '@/constants/api';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
+import { formatLocation } from '@/utils/formatLocation';
 import { useAppStore } from '../../store/appStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -132,7 +133,7 @@ export default function SavedScreen() {
                 id: j.id,
                 title: j.title || 'Unknown',
                 company: displayCompany(j.company),
-                location: (([j.city, j.country_code].filter(Boolean).join(', ') || j.location || '').toUpperCase()).replace(/[\uD83C][\uDDE6-\uDDFF]/g, '').trim(),
+                location: formatLocation([j.city, j.country_code].filter(Boolean).join(', ') || j.location || '') || 'Unknown',
                 timeAgo: formatTimeAgo(j.saved_at),
                 apply_url: j.apply_url || '',
                 apply_email: j.apply_email || '',

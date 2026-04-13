@@ -1,4 +1,5 @@
 import { API_URL } from '@/constants/api';
+import { formatLocation } from '@/utils/formatLocation';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
@@ -352,8 +353,9 @@ export default function SwipeScreen() {
                 const descRaw = job.description_text || job.description || '';
                 const descriptionPreview = typeof descRaw === 'string' ? descRaw.slice(0, 3000) : '';
                 const company = displayCompany(job.company);
-                const locationRaw = [job.city, job.country_code].filter(Boolean).join(', ') || (job.location != null ? String(job.location) : 'Unknown');
-                const locationDisplay = locationRaw.replace(/[\uD83C][\uDDE6-\uDDFF]/g, '').trim();
+                const locationDisplay = formatLocation(
+                    [job.city, job.country_code].filter(Boolean).join(', ') || (job.location != null ? String(job.location) : '')
+                ) || 'Unknown';
                 return {
                     id: job.id,
                     company,
@@ -471,13 +473,19 @@ export default function SwipeScreen() {
                     <Text style={styles.emptyTitle}>Connection Issue</Text>
                     <Text style={styles.emptySubtitle}>{error}</Text>
                 </>
-            ) : (
+            ) : (batchExhausted || (remainingToday === 0 && !!nextResetAt)) ? (
                 <>
                     <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
                     <Text style={styles.emptyTitle}>You're all caught up!</Text>
                     <Text style={styles.emptySubtitle}>
                         New jobs arrive in {formatCountdown(nextResetAt)}.
                     </Text>
+                </>
+            ) : (
+                <>
+                    <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.surface2} />
+                    <Text style={styles.emptyTitle}>No more jobs today</Text>
+                    <Text style={styles.emptySubtitle}>You've caught up with all matches.</Text>
                 </>
             )}
             <Pressable 

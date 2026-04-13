@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
+import { formatLocation } from '@/utils/formatLocation';
 
 function displayCompany(name: string | null | undefined): string {
     if (name == null || name === '') return 'Company';
@@ -105,7 +106,7 @@ export default function JobDetailScreen() {
     const applyUrl = (job.apply_url || '').trim();
     const hasApply = (applyUrl.startsWith('http') || job.apply_email) && freshness.status !== 'closed';
     const metaParts = [
-        ([job.city, job.country_code].filter(Boolean).join(', ') || job.location || '').replace(/[\uD83C][\uDDE6-\uDDFF]/g, '').trim(),
+        formatLocation([job.city, job.country_code].filter(Boolean).join(', ') || job.location || '') || undefined,
         job.job_type || job.type,
         job.remote_type === 'fully_remote' ? 'Remote' : job.remote_type === 'hybrid' ? 'Hybrid' : null,
     ].filter(Boolean);
