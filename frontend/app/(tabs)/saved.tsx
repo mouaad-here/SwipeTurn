@@ -98,12 +98,6 @@ export default function SavedScreen() {
     const suppressNextFocusRef = useRef(false);
     const COOLDOWN_MS = 30000; // 30s cooldown between automatic refetches
 
-    // Enable smooth list animations on Android
-    useEffect(() => {
-        if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-            UIManager.setLayoutAnimationEnabledExperimental(true);
-        }
-    }, []);
 
     const loadSaved = useCallback(async (force = false) => {
         if (suppressNextFocusRef.current && !force) {
