@@ -134,8 +134,8 @@ export default function JobDetailScreen() {
                             <Text style={styles.title}>{job.title}</Text>
                             <Text style={styles.company} numberOfLines={1}>{displayCompany(job.company)}</Text>
                             <Text style={styles.meta}>{metaParts.join(' · ')}</Text>
-                            {job.match_score != null && (
-                                <Text style={styles.matchScore}>{job.match_score}% match</Text>
+                            {job.match_score != null && job.match_score > 0 && (
+                                <Text style={styles.matchScore}>{Math.round(job.match_score)}% match</Text>
                             )}
                         </View>
                     </View>

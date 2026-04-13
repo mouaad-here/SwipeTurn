@@ -105,13 +105,7 @@ export default function PreviewScreen() {
 
     try {
       const headers = await getAuthHeaders();
-      const reqUrl = `${API_URL}/users/onboarding/complete`;
-      console.log('--- ONBOARDING SUBMIT DIAGNOSTIC ---');
-      console.log('API_URL resolved as:', API_URL);
-      console.log('Full Request URL:', reqUrl);
-      console.log('Auth Headers Generated:', !!headers && Object.keys(headers).length > 0);
-
-      const res = await fetch(reqUrl, {
+      const res = await fetch(`${API_URL}/users/onboarding/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +117,6 @@ export default function PreviewScreen() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        console.log('Response not OK. Status:', res.status, 'Error data:', data);
         setError(data.detail || data.error || `Request failed (${res.status})`);
         setIsSubmitting(false);
         return;
@@ -133,7 +126,6 @@ export default function PreviewScreen() {
       await setOnboardingCompleteFlag();
       router.replace('/(tabs)/swipe');
     } catch (err) {
-      console.error('Caught fetch error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setIsSubmitting(false);
@@ -230,12 +222,6 @@ export default function PreviewScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <View style={{ backgroundColor: '#FEF3C7', padding: 8, marginHorizontal: 24, borderRadius: 8, marginBottom: 12 }}>
-        <Text style={{ fontFamily: 'Satoshi-Medium', fontSize: 12, color: '#92400E' }}>
-          DEBUG API_URL: {API_URL}
-        </Text>
-      </View>
-
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 + 100 }]}
         bounces={false}
@@ -245,6 +231,42 @@ export default function PreviewScreen() {
         <Text style={styles.subtitle}>
           Make sure everything looks good. You can edit any section below.
         </Text>
+
+        {/* CV Upload — shown first so users understand it improves matching */}
+        <View style={styles.cvSection}>
+          <View style={styles.cvSectionHeader}>
+            <Ionicons name="sparkles-outline" size={18} color={COLORS.accent} />
+            <Text style={styles.cvSectionLabel}>Boost your match quality</Text>
+          </View>
+          <Text style={styles.cvSectionHint}>
+            Uploading your CV lets our AI extract your exact skills and experience level — giving you significantly more accurate job recommendations.
+          </Text>
+          {!cvUploaded ? (
+            <Pressable
+              style={[styles.uploadCvButton, cvUploading && styles.uploadCvButtonDisabled]}
+              onPress={handleUploadCv}
+              disabled={cvUploading}
+            >
+              {cvUploading ? (
+                <ActivityIndicator size="small" color={COLORS.accent} />
+              ) : (
+                <>
+                  <Ionicons name="document-attach-outline" size={20} color={COLORS.accent} />
+                  <Text style={styles.uploadCvButtonText}>Upload CV (PDF or DOCX)</Text>
+                </>
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.extractedBlock}>
+              <View style={styles.extractedRow}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.accentSuccess} />
+                <Text style={styles.extractedTitle}>CV uploaded successfully</Text>
+              </View>
+              <Text style={[styles.cvSectionHint, { marginTop: 4 }]}>Your skills and experience have automatically been added to your profile above.</Text>
+            </View>
+          )}
+          {cvError ? <Text style={styles.cvErrorText}>{cvError}</Text> : null}
+        </View>
 
         <SectionCard label="Geography" onEdit={() => router.push('/(onboarding)/geography')}>
           <Text style={styles.sectionValue}>
@@ -288,40 +310,6 @@ export default function PreviewScreen() {
             <Text style={styles.sectionValue}>—</Text>
           )}
         </SectionCard>
-
-        <View style={styles.cvSection}>
-          <Text style={styles.cvSectionLabel}>CV (optional)</Text>
-          <Text style={styles.cvSectionHint}>
-            Upload your CV so we can extract skills and improve job matching.
-          </Text>
-          {!cvUploaded ? (
-            <Pressable
-              style={[styles.uploadCvButton, cvUploading && styles.uploadCvButtonDisabled]}
-              onPress={handleUploadCv}
-              disabled={cvUploading}
-            >
-              {cvUploading ? (
-                <ActivityIndicator size="small" color={COLORS.accent} />
-              ) : (
-                <>
-                  <Ionicons name="document-attach-outline" size={20} color={COLORS.accent} />
-                  <Text style={styles.uploadCvButtonText}>Upload PDF or DOCX</Text>
-                </>
-              )}
-            </Pressable>
-          ) : (
-            <View style={styles.extractedBlock}>
-              <View style={styles.extractedRow}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.accentSuccess} />
-                <Text style={styles.extractedTitle}>CV uploaded successfully</Text>
-              </View>
-              <Text style={[styles.cvSectionHint, { marginTop: 4 }]}>Your skills and experience have automatically been added to your profile above.</Text>
-            </View>
-          )}
-          {cvError ? <Text style={styles.cvErrorText}>{cvError}</Text> : null}
-        </View>
-
-
 
         {error ? (
           <Text style={styles.errorText}>{error}</Text>
@@ -418,12 +406,20 @@ const styles = StyleSheet.create({
   },
   cvSection: {
     marginBottom: 24,
+    backgroundColor: COLORS.surface2,
+    borderRadius: 16,
+    padding: 20,
+  },
+  cvSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
   },
   cvSectionLabel: {
     fontFamily: 'ClashDisplay-Bold',
     fontSize: 16,
     color: COLORS.textPrimary,
-    marginBottom: 6,
   },
   cvSectionHint: {
     fontFamily: 'Satoshi-Regular',
