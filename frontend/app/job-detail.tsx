@@ -105,7 +105,7 @@ export default function JobDetailScreen() {
     const applyUrl = (job.apply_url || '').trim();
     const hasApply = (applyUrl.startsWith('http') || job.apply_email) && freshness.status !== 'closed';
     const metaParts = [
-        [job.city, job.country_code].filter(Boolean).join(', ') || job.location,
+        ([job.city, job.country_code].filter(Boolean).join(', ') || job.location || '').replace(/[\uD83C][\uDDE6-\uDDFF]/g, '').trim(),
         job.job_type || job.type,
         job.remote_type === 'fully_remote' ? 'Remote' : job.remote_type === 'hybrid' ? 'Hybrid' : null,
     ].filter(Boolean);

@@ -289,9 +289,9 @@ export default function ProfileScreen() {
         );
     };
 
-    const displayName = user?.name || clerkUser?.fullName || 'Guest';
-    // Always prefer the Clerk-verified email over any CV-extracted email
     const displayEmail = clerkUser?.primaryEmailAddress?.emailAddress || user?.email || '';
+    const nameStr = user?.name || clerkUser?.fullName;
+    const displayName = (nameStr && nameStr.trim()) ? nameStr.trim() : (displayEmail ? displayEmail.split('@')[0] : 'Guest');
     const score = user?.profile_score ?? 0;
     const skills = user?.extracted_skills || [];
     const keywords = user?.preferences?.keywords || [];
@@ -300,7 +300,7 @@ export default function ProfileScreen() {
     const MAX_CHIPS = 5;
     const visibleChips = allPrefChips.slice(0, MAX_CHIPS);
     const overflowCount = allPrefChips.length - MAX_CHIPS;
-    const cvFilename = user?.has_cv ? 'CV processed ✅' : null;
+    const cvFilename = user?.has_cv ? 'CV processed' : null;
     const geographyLabel = (() => {
         const g = (user?.preferences?.geography || mockOnboardingState.geography || '').toLowerCase();
         if (g === 'morocco') return 'Morocco 🇲🇦';
@@ -378,7 +378,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.card}>
                     <View style={styles.resumeIconBox}>
-                        <Text style={{ fontSize: 20 }}>­ƒôä</Text>
+                        <Ionicons name="document-text" size={24} color={COLORS.accent} />
                     </View>
                     <View style={styles.resumeInfo}>
                         <Text style={styles.resumeFilename} numberOfLines={1}>{cvFilename || 'No CV uploaded'}</Text>

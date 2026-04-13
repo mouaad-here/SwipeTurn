@@ -132,7 +132,7 @@ export default function SavedScreen() {
                 id: j.id,
                 title: j.title || 'Unknown',
                 company: displayCompany(j.company),
-                location: ([j.city, j.country_code].filter(Boolean).join(', ') || j.location || '').toUpperCase(),
+                location: (([j.city, j.country_code].filter(Boolean).join(', ') || j.location || '').toUpperCase()).replace(/[\uD83C][\uDDE6-\uDDFF]/g, '').trim(),
                 timeAgo: formatTimeAgo(j.saved_at),
                 apply_url: j.apply_url || '',
                 apply_email: j.apply_email || '',
