@@ -396,7 +396,6 @@ export default function SwipeScreen() {
             console.error("Feed error:", fetchError, "| API_URL:", `${API_URL}/jobs/feed`);
             if (!silent && !append) {
                 setFeed([]);
-                setGeographyMode('both');
                 setPage(1);
                 setHasMore(true);
                 setError("Network error. Make sure your local API_URL is using your computer's IP address instead of localhost.");
