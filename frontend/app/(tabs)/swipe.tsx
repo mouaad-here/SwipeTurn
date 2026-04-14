@@ -3,7 +3,7 @@ import { formatLocation } from '@/utils/formatLocation';
 import { COLORS, COLORS_ALPHA } from '@/constants/colors';
 import { useAuthHeaders } from '@/hooks/useAuthHeaders';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '@clerk/clerk-expo';
 import { BottomSheetFooter, BottomSheetFooterProps, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -195,6 +195,7 @@ export default function SwipeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const saveJob = useAppStore(state => state.saveJob);
+    const { userId, isLoaded } = useAuth();
 
     const [feed, setFeed] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -219,12 +220,23 @@ export default function SwipeScreen() {
         bottomSheetModalRef.current?.present();
     };
 
-    // Load feed once on mount
+    // Reset feed state and reload whenever auth identity changes:
+    // covers initial load, login, logout, and account switch on the same device.
     useEffect(() => {
-        if (feedLoadedRef.current) return;
-        feedLoadedRef.current = true;
+        if (!isLoaded) return;
+        setFeed([]);
+        setPage(1);
+        setHasMore(true);
+        setBatchExhausted(false);
+        setRemainingToday(null);
+        setNextResetAt(null);
+        setError(null);
+        feedLoadedRef.current = false;
+        loadingRef.current = false;
+        isFetchingRef.current = false;
         loadFeed(1);
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId, isLoaded]);
 
     const renderFooter = React.useCallback(
         (props: BottomSheetFooterProps) => {
@@ -262,12 +274,7 @@ export default function SwipeScreen() {
     // Whenever the user navigates back to the Swipe tab, refresh the feed so that
     // changes made in Profile (geography, seniority, job type, domains, CV) are
     // reflected in the recommendations.
-    useFocusEffect(
-        React.useCallback(() => {
-            // Batch window is server-driven; just reload page 1 silently on focus
-            loadFeed(1, false, true);
-        }, [])
-    );
+
 
     const loadFeed = async (targetPage = 1, append = false, silent = false) => {
         if (loadingRef.current) return;
