@@ -149,22 +149,29 @@ def get_job_feed(
             print(f"[feed] raw_jobs={len(raw_jobs)} for batch generation")
 
             # Exclude swiped + deduplicate
+            n_swiped_excluded = 0
+            n_bad_url = 0
+            n_deduped = 0
             seen_title_company: set = set()
             candidate_jobs = []
             for j in raw_jobs:
                 if j["id"] in swiped_ids:
+                    n_swiped_excluded += 1
                     continue
                 apply_url = (j.get("apply_url") or "").strip()
                 if not apply_url.startswith(("http://", "https://")):
+                    n_bad_url += 1
                     continue
                 dedup_key = (
                     (j.get("title") or "").strip().lower(),
                     (j.get("company") or "").strip().lower(),
                 )
                 if dedup_key in seen_title_company:
+                    n_deduped += 1
                     continue
                 seen_title_company.add(dedup_key)
                 candidate_jobs.append(j)
+            print(f"[feed] exclusion: swiped={n_swiped_excluded} bad_url={n_bad_url} deduped={n_deduped} remaining={len(candidate_jobs)} user_id={user_id}")
 
             # Domain filter
             user_domains = prefs.get("domains") or []
@@ -185,6 +192,7 @@ def get_job_feed(
                     return any(kw in text for kw in domain_kws)
 
                 domain_filtered = [j for j in candidate_jobs if _matches_user_domain(j)]
+                print(f"[feed] domain filter: domains={user_domains} matched={len(domain_filtered)}/{len(candidate_jobs)} user_id={user_id}")
                 if domain_filtered:
                     candidate_jobs = domain_filtered
 
