@@ -409,7 +409,7 @@ def get_job_feed(
             if not job:
                 continue
             # Attach snapshot score from batch so frontend sees a stable value
-            job["match_score"] = round(fit_score_map.get(job_id, 0) * 100, 1)
+            job["match_score"] = round(float(fit_score_map.get(job_id, 0)), 1)
             # Run scoring for matched_skills / missing_skills display only
             scores = score_job_for_user(job, user)
             job["matched_skills"] = scores.get("matched_skills", [])
