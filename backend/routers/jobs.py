@@ -219,6 +219,12 @@ def get_job_feed(
                 strict_jobs = scored_jobs
             else:
                 strict_jobs = [j for j in scored_jobs if float(j.get("fit_score") or 0) >= MIN_FEED_SCORE]
+                # Partial-profile fallback: strong-profile scoring eliminated every candidate.
+                # Rather than issuing an empty batch, serve all scored jobs unfiltered so
+                # the user sees something. Full-profile users still get the strict threshold.
+                if not strict_jobs and profile_quality == "partial":
+                    strict_jobs = scored_jobs
+                    print(f"[feed] partial profile fallback: {len(strict_jobs)} jobs issued (MIN_FEED_SCORE bypassed for user_id={user_id})")
 
             stats["after_min_score"] = len(strict_jobs)
 
@@ -267,7 +273,7 @@ def get_job_feed(
                     "user_id": user_id,
                     "window_start": window_start_iso,
                     "next_reset_at": next_reset_iso,
-                    "batch_size": actual_batch_size if actual_batch_size > 0 else 1,
+                    "batch_size": actual_batch_size,
                     "timezone": "Africa/Casablanca",
                     "is_exhausted": False,
                 }).execute()
@@ -303,7 +309,7 @@ def get_job_feed(
                 try:
                     supabase.table("daily_feed_batch_items").insert(items).execute()
                 except Exception as e:
-                    print(f"[feed] Warning: failed to insert batch items: {e}")
+                    print(f"[feed] ERROR: batch item insertion failed for batch_id={batch['id']} user_id={user_id}: {type(e).__name__}: {e}")
 
             print(f"[feed] batch generated: size={actual_batch_size} user_id={user_id} stats={stats}")
 
