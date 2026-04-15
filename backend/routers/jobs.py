@@ -15,9 +15,9 @@ from constants import (
 )
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
-JOB_MAX_AGE_DAYS = int(os.getenv("JOB_MAX_AGE_DAYS", "14"))
+JOB_MAX_AGE_DAYS = int(os.getenv("JOB_MAX_AGE_DAYS", "30"))
 DAILY_BATCH_SIZE = int(os.getenv("DAILY_BATCH_SIZE", "25"))
-BATCH_RESET_HOUR = 8   # 8:00 AM Africa/Casablanca
+BATCH_RESET_HOUR = 8
 BATCH_TZ = pytz.timezone("Africa/Casablanca")
 
 
@@ -128,7 +128,7 @@ def get_job_feed(
                     query = query.eq("remote_type", eligibility["remote_type"])
 
             onboarding_seniority = (prefs.get("seniority") or "").lower().strip()
-            user_seniority = onboarding_seniority if onboarding_seniority else "mid"
+            user_seniority = onboarding_seniority if onboarding_seniority else "intern"
             allowed_levels = get_seniority_filter(user_seniority)
             if allowed_levels:
                 query = query.or_(
@@ -193,8 +193,13 @@ def get_job_feed(
 
                 domain_filtered = [j for j in candidate_jobs if _matches_user_domain(j)]
                 print(f"[feed] domain filter: domains={user_domains} matched={len(domain_filtered)}/{len(candidate_jobs)} user_id={user_id}")
-                if domain_filtered:
+                
+                # Soft filter: only restrict to domain if we still have at least 10 matches.
+                # Otherwise, keep the full pool and let the AI scoring rank the best ones.
+                if len(domain_filtered) >= 10:
                     candidate_jobs = domain_filtered
+                else:
+                    print(f"[feed] soft filter fallback: keeping {len(candidate_jobs)} raw candidates (domain_filtered={len(domain_filtered)} is too small)")
 
             # Resolve embedding
             scoring_user = user

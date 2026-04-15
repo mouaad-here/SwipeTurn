@@ -6,7 +6,7 @@ Refactored: seniority is a strict hard filter, eligibility uses globally_accessi
 # Seniority: strict filter per PIPELINE.md Section 7.
 # User explicitly selected their level; respect it.
 SENIORITY_FILTER = {
-    "intern":  ["intern"],
+    "intern":  ["intern", "junior"],
     "junior":  ["junior"],
     "mid":     ["mid"],
     "senior":  ["senior"],
@@ -51,23 +51,27 @@ DOMAIN_KEYWORDS: dict[str, list[str]] = {
         "software", "developer", "développeur", "engineer", "ingénieur", "backend", "front-end",
         "frontend", "fullstack", "full-stack", "full stack", "programming", "web developer",
         "mobile developer", "java", "python", "javascript", "typescript", "react", "node",
+        "flutter", "stack", "testing", "testeur", "qa", "software quality", "blockchain",
+        "sap", "hybris", "it", "technique", "pfe", "stage", "internship", "junior", "technologies",
     ],
     "Data & AI": [
         "data", "machine learning", "artificial intelligence", "deep learning", "nlp",
         "data science", "data engineer", "data analyst", "bi ", "business intelligence",
-        "ml engineer", "computer vision", "llm", "analyst", "scientist",
+        "ml engineer", "computer vision", "llm", "analyst", "scientist", "ia", "intelligence",
+        "artificielle", "genai", "generative ai", "statistique", "statistics", "analytics",
     ],
     "Design & UX": [
         "design", "designer", "ui", "ux", "figma", "creative", "graphic", "interface",
-        "web design", "motion", "branding", "visual",
+        "web design", "motion", "branding", "visual", "adobe", "photoshop", "illustrator",
     ],
     "Product": [
         "product manager", "chef de produit", "product owner", "po ", "pm ", "agile",
-        "scrum", "roadmap", "product management",
+        "scrum", "roadmap", "product management", "strategy", "roadmap",
     ],
     "DevOps & Cloud": [
-        "devops", "cloud", "aws", "azure", "gcp", "kubernetes", "docker", "infrastructure",
-        "sre ", "platform engineer", "site reliability", "ci/cd", "terraform", "linux admin",
+        "devops", "cloud", "aws", "azure", "gcp", "google cloud", "kubernetes", "docker",
+        "infrastructure", "sre ", "platform engineer", "site reliability", "ci/cd",
+        "terraform", "linux admin", "container", "pipeline", "infra", "sysadmin",
     ],
     "Customer Support": [
         "customer support", "customer service", "service client", "helpdesk", "help desk",
@@ -75,7 +79,7 @@ DOMAIN_KEYWORDS: dict[str, list[str]] = {
     ],
     "Cybersecurity": [
         "security", "cybersecurity", "sécurité", "soc", "pentest", "penetration",
-        "vulnerability", "firewall", "siem",
+        "vulnerability", "firewall", "siem", "cybersécurité",
     ],
     "Finance & Accounting": [
         "finance", "accounting", "comptabilité", "audit", "controller", "treasury",
