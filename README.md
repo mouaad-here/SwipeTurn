@@ -1,753 +1,369 @@
 # SwipeTurn
 
-[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-0A84FF?style=flat-square&logo=apple)](https://expo.dev)
-[![Expo SDK](https://img.shields.io/badge/expo-~54.0-000020?style=flat-square&logo=expo&logoColor=white)](https://expo.dev)
-[![React Native](https://img.shields.io/badge/react--native-0.81.5-61DAFB?style=flat-square&logo=react&logoColor=black)](https://reactnative.dev)
-[![Python](https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-%E2%89%A50.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Clerk](https://img.shields.io/badge/auth-Clerk%20%28dev%29-6C47FF?style=flat-square&logo=clerk&logoColor=white)](https://clerk.com)
-[![EAS Build](https://img.shields.io/badge/EAS%20Build-configured-success?style=flat-square&logo=expo&logoColor=white)](https://expo.dev/eas)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+<p align="center">
+  <img src="frontend/assets/images/icon.png" width="96" alt="SwipeTurn app icon" />
+</p>
 
-A mobile-first job discovery app that lets users swipe through job listings — Tinder-style. Built with a focus on the Moroccan market and international remote roles, SwipeTurn combines multilingual AI matching with a clean, gesture-driven UX.
+<p align="center">
+  <a href="https://expo.dev"><img src="https://img.shields.io/badge/Expo-54-000020?style=flat-square&logo=expo&logoColor=white" alt="Expo 54" /></a>
+  <a href="https://reactnative.dev"><img src="https://img.shields.io/badge/React_Native-0.81-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React Native 0.81" /></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
+  <a href="https://www.python.org"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License" /></a>
+</p>
 
----
+SwipeTurn is a mobile job-discovery prototype for Moroccan candidates and international remote roles. It combines a bilingual ingestion pipeline, CV-derived profile signals, and a swipe-based React Native interface.
 
-## Table of Contents
+This repository is also a system-design case study: it documents what was built, where the MVP architecture became costly or fragile, and how I would evolve it without introducing unnecessary infrastructure.
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-  - [Frontend](#frontend)
-  - [Backend](#backend)
-  - [Pipeline](#pipeline)
-  - [Infrastructure](#infrastructure)
-  - [External Services](#external-services)
-- [Repository Structure](#repository-structure)
-- [AI & Matching Engine](#ai--matching-engine)
-- [Job Sources](#job-sources)
-- [Environment Variables](#environment-variables)
-  - [Frontend (.env)](#frontend-env)
-  - [Backend (.env)](#backend-env)
-  - [Pipeline (.env)](#pipeline-env)
-- [Getting Started — Local Development](#getting-started--local-development)
-  - [Prerequisites](#prerequisites)
-  - [1. Clone the Repository](#1-clone-the-repository)
-  - [2. Backend Setup](#2-backend-setup)
-  - [3. Pipeline Setup](#3-pipeline-setup)
-  - [4. Frontend Setup](#4-frontend-setup)
-  - [5. Running the Full Stack Locally](#5-running-the-full-stack-locally)
-- [Production Deployment — Hetzner VPS](#production-deployment--hetzner-vps)
-  - [Server Specs](#server-specs)
-  - [Initial Server Setup](#initial-server-setup)
-  - [Deploying with Docker Compose](#deploying-with-docker-compose)
-  - [DNS Configuration](#dns-configuration)
-  - [Updating the Production Server](#updating-the-production-server)
-- [Mobile App Builds (EAS)](#mobile-app-builds-eas)
-  - [Prerequisites](#prerequisites-1)
-  - [Development Build](#development-build)
-  - [Preview Build](#preview-build)
-  - [Production Build](#production-build)
-- [API Reference](#api-reference)
-- [Authentication & Guest Mode](#authentication--guest-mode)
-- [Design System](#design-system)
-- [Project Conventions](#project-conventions)
+> **Project status:** Portfolio case study. The mobile client, API, matching engine, and ingestion pipeline were implemented, but there is currently no public live app. The screenshots below come from the implemented Android client.
 
----
+## Problem
 
-## Overview
+Job discovery in the target market is fragmented across Moroccan boards and global remote-job APIs. The sources differ in language, structure, data quality, date formats, location semantics, and eligibility rules.
 
-SwipeTurn is a full-stack mobile application that aggregates job listings from multiple sources (Moroccan boards + global remote platforms), enriches them with LLM-extracted metadata, and serves a personalized swipe feed to users based on their uploaded CV and preferences.
+SwipeTurn explores three engineering questions:
 
-**Core user flow:**
+- How can heterogeneous French and English job data be normalized into one searchable model?
+- How useful can personalized ranking be with incomplete profiles and noisy job descriptions?
+- How can LLM and embedding features be used within the cost and operational limits of a small portfolio deployment?
 
-1. User opens the app → lands on onboarding (geography, domain, skills, seniority)
-2. Guest users get a generic feed immediately; signed-in users get a personalized one
-3. Swipe right to save, swipe left to skip
-4. Upload a CV → the AI extracts skills and generates a 384-dim embedding for semantic matching
-5. The backend scores and re-ranks jobs using a hybrid keyword + semantic + cross-encoder pipeline
+## Evidence-backed scope
 
----
+These values come from repository code or the checked-in job-corpus audit. They describe implementation scope, not unmeasured production traffic or business impact.
 
-## Architecture
+| Measure | Verified value | Source |
+|---|---:|---|
+| Jobs in the saved corpus audit | **838** | [`subcategories_from_db.json`](backend/scripts/output/subcategories_from_db.json) |
+| Morocco/global split in that audit | **533 / 305** | Same audit snapshot |
+| Currently enabled ingestion sources | **6** | Rekrute, Stagiaires, Remotive, WeWorkRemotely, RemoteOK, JSearch |
+| Pipeline cadence | **Every 12 hours** | `pipeline/scheduler.py` |
+| Cross-source fuzzy duplicate threshold | **93% title similarity** | `pipeline/processor.py` |
+| Embedding size | **384 dimensions** | Multilingual E5 model output |
+| Feed candidates considered per batch | **Up to 1,000** | `backend/routers/jobs.py` |
+| Default daily feed batch | **25 jobs** | `DAILY_BATCH_SIZE` |
+| Cross-encoder reranking window | **Top 15 jobs** | `backend/services/reranker.py` |
+| Pipeline LLM fallback chain | **3 models** | `pipeline/llm_enrichment.py` |
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Expo Mobile App (iOS/Android)          │
-│         React Native · Expo Router · Clerk · Zustand     │
-└────────────────────────┬────────────────────────────────┘
-                         │ HTTPS (api.swipeturn.com)
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│               Caddy (Reverse Proxy + TLS)                │
-│             caddy:2-alpine · Auto-HTTPS via ACME         │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│                 FastAPI Backend (port 8003)               │
-│   Uvicorn · Clerk JWT Auth · Supabase · SentenceXformers │
-└────────┬───────────────────────────────────────┬────────┘
-         │                                       │
-         ▼                                       ▼
-┌─────────────────┐                   ┌──────────────────┐
-│  Supabase (DB)  │                   │  OpenRouter LLM   │
-│  PostgreSQL     │                   │  Gemini 2.5 Flash │
-│  + pgvector     │                   └──────────────────┘
-└─────────────────┘
-         ▲
-         │ writes
-┌─────────────────────────────────────────────────────────┐
-│              Pipeline Worker (Scheduler)                 │
-│  Python · scrapling/BS4 · SentenceTransformers · OpenAI  │
-│  Sources: Rekrute, Stagiaires, Remotive, RemoteOK, ...  │
-└─────────────────────────────────────────────────────────┘
+The audit snapshot predates the final source selection and includes Adzuna data, which is now disabled. I do not claim active-user, uptime, conversion, or latency metrics because those were not measured in a production deployment.
+
+## UI showcase
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/swipeturn-welcome.jpeg" width="220" alt="SwipeTurn welcome screen" /><br/><sub>Welcome and guest entry</sub></td>
+    <td align="center"><img src="docs/images/swipeturn-onboarding-review.jpeg" width="220" alt="SwipeTurn onboarding preference review" /><br/><sub>Preference review and CV upload</sub></td>
+    <td align="center"><img src="docs/images/swipeturn-feed.jpeg" width="220" alt="SwipeTurn French job feed" /><br/><sub>French job and CV match signal</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/swipeturn-swipe-save.jpeg" width="220" alt="SwipeTurn save gesture" /><br/><sub>Swipe right to save</sub></td>
+    <td align="center"><img src="docs/images/swipeturn-saved-jobs.jpeg" width="220" alt="SwipeTurn saved jobs" /><br/><sub>Saved jobs and apply actions</sub></td>
+  </tr>
+</table>
+
+## Current implementation
+
+### Architecture
+
+```mermaid
+flowchart LR
+    subgraph Mobile[Expo mobile app]
+        UI[Onboarding, swipe feed, search, saved jobs]
+        Auth[Clerk SDK]
+    end
+
+    subgraph API[FastAPI backend]
+        Routes[Users, jobs, swipes]
+        Match[Hybrid scoring and reranking]
+        CV[CV parsing and embedding]
+    end
+
+    subgraph Worker[Scheduled pipeline]
+        Sources[Source adapters]
+        Normalize[Cleaning and normalization]
+        Enrich[LLM enrichment]
+        Embed[Batch embeddings]
+    end
+
+    Boards[Job boards and APIs] --> Sources
+    Sources --> Normalize --> Enrich --> Embed
+    Enrich --> OpenRouter[OpenRouter]
+    Embed --> DB[(Supabase PostgreSQL)]
+
+    UI -->|REST + Clerk JWT or guest ID| Routes
+    Auth --> Clerk[Clerk]
+    Routes --> DB
+    Routes --> Match
+    Routes --> CV
+    CV --> OpenRouter
+    Match --> DB
 ```
 
-All three backend services run in Docker containers on a single Hetzner VPS, orchestrated by Docker Compose.
+The system is deployed as a small monorepo.
 
----
+### Technology stack
 
-## Tech Stack
-
-### Frontend
-
-| Technology | Version | Purpose |
-|---|---|---|
-| **Expo** | ~54.0.33 | Managed React Native framework |
-| **React Native** | 0.81.5 | Cross-platform mobile UI |
-| **TypeScript** | ~5.9.2 | Type safety |
-| **Expo Router** | ~6.0.23 | File-based navigation (Stack + Tabs) |
-| **Clerk (`@clerk/clerk-expo`)** | ^2.19.29 | Authentication (Email, Google OAuth) |
-| **Zustand** | ^5.0.11 | Global state management (feed, saved jobs) |
-| **react-native-reanimated** | ~4.1.1 | GPU-accelerated swipe animations |
-| **react-native-gesture-handler** | ~2.28.0 | Swipe gesture recognition |
-| **@gorhom/bottom-sheet** | ^5.2.8 | Bottom sheet modals |
-| **expo-secure-store** | ~15.0.8 | Secure token caching (Clerk) |
-| **AsyncStorage** | 2.2.0 | Onboarding state, feed cache, guest state |
-| **expo-document-picker** | ~14.0.8 | CV upload (PDF/DOCX) |
-| **expo-image** | ~3.0.11 | Optimized image rendering with caching |
-| **expo-haptics** | ~15.0.8 | Tactile feedback on swipe actions |
-| **Hugeicons** | ^0.0.2 | Icon library |
-| **ClashDisplay / Satoshi** | — | Custom OTF typefaces |
-
-### Backend
-
-| Technology | Version | Purpose |
-|---|---|---|
-| **FastAPI** | >=0.115.0 | REST API framework |
-| **Uvicorn** | >=0.32.0 | ASGI server |
-| **Python** | 3.12 | Runtime |
-| **python-jose** | >=3.3.0 | Clerk RS256 JWT verification |
-| **supabase-py** | >=2.10.0 | Database client (Postgres via PostgREST) |
-| **sentence-transformers** | >=3.0.0 | Embedding model + cross-encoder reranker |
-| **numpy** | >=1.24.0 | Cosine similarity computations |
-| **pypdf** | >=4.0.0 | PDF text extraction (CV parsing) |
-| **python-docx** | >=1.1.0 | DOCX text extraction (CV parsing) |
-| **httpx** | >=0.27.0 | Async HTTP calls to OpenRouter |
-| **python-multipart** | >=0.0.12 | File upload handling |
-
-**AI Models (loaded at startup, cached to shared Docker volume):**
-
-| Model | Purpose |
+| Area | Technologies |
 |---|---|
-| `efederici/multilingual-e5-small-4096` (384-dim) | User CV + job description embeddings |
-| `unicamp-dl/mMiniLM-L6-v2-mmarco-v2` | Cross-encoder reranker (top-15 re-ranking) |
-| `google/gemini-2.5-flash` via OpenRouter | CV structured data extraction (backend `cv_parser.py`) |
+| Mobile | Expo 54, React Native 0.81, TypeScript, Expo Router, Zustand, Reanimated, Gesture Handler |
+| Identity | Clerk SDK, RS256 JWTs, guest identifiers |
+| Backend | Python 3.12, FastAPI, Uvicorn, Pydantic, Supabase Python client, httpx |
+| ML and retrieval | SentenceTransformers, multilingual E5, mMiniLM cross-encoder, NumPy cosine similarity |
+| CV processing | pypdf, python-docx, OpenRouter structured extraction |
+| Ingestion | Requests, BeautifulSoup, lxml, Scrapling, python-dateutil, schedule |
+| Data | Supabase PostgreSQL, JSONB fields, stored 384-dimensional vectors |
+| Infrastructure | Docker Compose, Caddy, shared Hugging Face cache, EAS Build |
 
-> **Note on CV parser model:** The backend CV parser calls OpenRouter directly via `httpx` using `google/gemini-2.5-flash` at temperature 0.1. There is no model fallback for this path — if the call fails, the parser returns an empty skills object and logs the error.
+### Responsibilities
+
+| Component | Current responsibility |
+|---|---|
+| Mobile app | Authentication UX, onboarding, CV selection, swipe gestures, search, saved jobs, local boot/cache state |
+| FastAPI API | Identity resolution, profile updates, CV processing, feed generation, matching, swipe persistence, public privacy/deletion pages |
+| Pipeline worker | Fetching, cleaning, deduplication, enrichment, embedding, database writes, expiry cleanup |
+| Supabase | Users, jobs, swipes, normalized skills, daily feed batches, enrichment cache |
+| Clerk | Email/password and Google authentication |
+| OpenRouter | Structured CV extraction and job enrichment |
+
+### Key design decisions
+
+| Decision | Why it was chosen | Trade-off discovered |
+|---|---|---|
+| Keep original French/English descriptions and normalize ranking fields | Preserves source fidelity and avoids paying for full translation | Taxonomy quality depends on extraction consistency |
+| Process CVs in memory and store only derived data | Reduces retention of sensitive raw documents | A changed parser cannot replay the original CV |
+| Precompute job embeddings in the pipeline | Avoids embedding work during feed requests | Model migrations require a backfill |
+| Rerank only the top 15 candidates | Bounds CPU cost while improving final ordering | Ranking quality is limited by first-stage recall |
+| Persist 25-job daily batches | Stable pagination and less repeated inference | Preferences can become stale until the next reset |
+| Run API and worker on one VPS | Low operational cost for an MVP | ML workloads compete with request latency and memory |
+| Cache LLM enrichment by content hash | Avoids repeated calls for unchanged postings | Cache and prompt versions must be managed explicitly |
+
+### Job ingestion and normalization
+
+The worker runs once at startup and then every 12 hours. Active sources are:
+
+- Morocco: Rekrute and Stagiaires.ma.
+- Remote/global: Remotive, WeWorkRemotely, RemoteOK, and JSearch.
+
+Each source adapter returns the same intermediate job dictionary. `pipeline/processor.py` then:
+
+1. Rejects old jobs and invalid application URLs.
+2. Deduplicates by source ID and by fuzzy company/title similarity for recent global jobs.
+3. Normalizes HTML descriptions, dates, locations, cities, country codes, and expiry dates.
+4. Sends cleaned text to OpenRouter for skills, category, seniority, work type, location, and eligibility extraction.
+5. Validates LLM enums and caps the skill list.
+6. Generates a 384-dimensional multilingual E5 embedding in batches.
+7. Writes the canonical job row and normalized `job_skills` rows to Supabase.
+8. Marks expired jobs inactive.
+
+LLM results are content-addressed and cached in `llm_enrichment_cache`. The worker rotates through three configured models when an API or JSON parse fails.
+
+### French and English data
+
+The pipeline does not translate entire postings. It keeps the original description for display while normalizing the fields used for filtering and ranking:
+
+- French relative dates and Moroccan locations are parsed by source-specific cleaning code.
+- The enrichment prompt maps French and English skill names to canonical English labels.
+- `efederici/multilingual-e5-small-4096` embeds both CV and job profile text.
+- `unicamp-dl/mMiniLM-L6-v2-mmarco-v2` reranks mixed French/English candidate-job pairs.
+- Keyword scoring uses canonical extracted skills and normalized categories rather than depending only on raw text.
+
+This approach reduced the need for a separate translation service, but it made data quality dependent on prompt consistency, model availability, and source-specific edge cases.
+
+### Matching and feed generation
+
+For users without enough profile data, the API serves a generic quality/recency-ranked feed. For personalized profiles it uses:
+
+1. **Hard eligibility filters:** geography, seniority, work type, job age, active status, and previous swipes.
+2. **Keyword score (0–100):** skill overlap (60 points), domain match (25), and job-type match (15).
+3. **Semantic score:** cosine similarity between the stored CV/profile embedding and job embedding.
+4. **Hybrid score:** 50% keyword score and 50% scaled semantic similarity.
+5. **Recency bonus:** a small boost for recently published jobs.
+6. **Cross-encoder reranking:** reranks the top 15 candidates with a four-second timeout and falls back to the hybrid order on failure.
+
+The top results are persisted as a daily batch that resets at 08:00 Africa/Casablanca. This keeps the feed stable and avoids rerunning the expensive ranking path on every page request.
+
+### API surface
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Service health |
+| `GET` | `/users/me` | Public-safe profile and completion score |
+| `PATCH` | `/users/preferences` | Profile and preference updates |
+| `POST` | `/users/onboarding/complete` | Atomic onboarding commit |
+| `POST` | `/users/upload-cv` | In-memory PDF/DOCX parsing and profile embedding |
+| `POST` | `/users/merge-guest` | Transfer guest state after authentication |
+| `DELETE` | `/users/me` | Delete account data and revoke Clerk identity |
+| `GET` | `/jobs/feed` | Daily personalized feed |
+| `GET` | `/jobs/search` | Text search with optional exact-match boost |
+| `GET` | `/jobs/{job_id}` | Job details and dynamic score |
+| `POST` | `/jobs/{job_id}/apply` | Mark an application intent |
+| `POST` | `/swipes` | Save or pass a job |
+| `GET` | `/swipes/saved` | Saved and applied jobs |
+| `PATCH/DELETE` | `/swipes/{job_id}` | Update or archive a saved job |
+
+Raw CV files and extracted CV text are processed in memory and are not persisted. The database stores only structured profile fields and the derived embedding.
+
+## Problems and limitations
+
+The MVP works, but several decisions became difficult to maintain as the matching and ingestion logic grew.
 
 ### Pipeline
 
-| Technology | Version | Purpose |
+- Source adapters, normalization, enrichment, embeddings, and writes run in one process. One slow API or model can delay an entire source run.
+- Broad exception handling keeps the scheduler alive but can hide recurring source-quality failures.
+- LLM classification is useful for inconsistent postings, but it is slower, non-deterministic, and more expensive than deterministic normalization.
+- There is no raw/staging table, so replaying normalization after a rule change requires scraping again or backfilling production rows.
+- Data contracts are Python dictionaries rather than validated source and canonical schemas.
+
+### Backend and API
+
+- Feed generation fetches and scores up to 1,000 rows in application memory instead of using database-side vector candidate retrieval.
+- Embedding and cross-encoder models share CPU and memory with request handling on the same server.
+- Daily batches reduce compute cost, but profile changes do not affect the feed until the next batch window.
+- Authentication configuration must be changed to fail closed when the Clerk verification key is unavailable.
+- Guest merging and partial preference updates need one consistent storage and merge contract.
+- The full live Supabase schema is not represented by repository migrations, which makes local setup and recovery difficult.
+- External API calls use different retry, timeout, logging, and error-shaping patterns.
+
+### Matching
+
+- The 50/50 keyword/semantic weighting is hand-tuned rather than measured against a labeled relevance set.
+- LLM-extracted skills can improve recall but also inject inconsistent labels into keyword scoring.
+- Cross-encoder inference improves ordering but is expensive on CPU and only protected by a timeout.
+- Match percentages look precise in the UI even though they are ranking signals, not calibrated probabilities.
+- There is no offline evaluation suite for bilingual relevance, geography eligibility, or seniority leakage.
+
+### Mobile and UI
+
+- Authentication, boot reconciliation, guest state, caching, and networking are spread across screens and hooks.
+- API responses are mapped manually in several screens rather than through a typed client and shared DTOs.
+- Optimistic swipe state can diverge from the backend when a request fails.
+- Chat and notification screens are placeholders; they are not implemented product features.
+- The current UI communicates a single match percentage but does not explain which skills, preferences, or eligibility rules affected the rank.
+- Automated component, navigation, and end-to-end tests are not yet present.
+
+### Scalability and cost
+
+The single-VPS design is appropriate for an MVP: it avoids managed queues and multiple always-on services. Its limit is resource contention. Pipeline embeddings, cross-encoder inference, and API traffic compete for the same CPU and memory.
+
+The main cost controls already implemented are scheduled ingestion, LLM caching, batched job embeddings, a shared model cache, limited reranking, source-volume limits, and persisted daily feeds. The next optimization should reduce repeated work before adding more infrastructure.
+
+## Proposed architecture improvements
+
+These are proposed improvements, not features currently implemented. The goal is a cleaner modular monolith and worker architecture, not an immediate move to microservices.
+
+```mermaid
+flowchart LR
+    Sources[Source adapters] --> Raw[(raw_jobs staging)]
+    Raw --> Rules[Deterministic normalization and validation]
+    Rules -->|uncertain fields only| Enrich[LLM enrichment jobs]
+    Rules --> Canonical[(canonical jobs)]
+    Enrich --> Canonical
+    Canonical --> Embeddings[Batch embedding worker]
+    Embeddings --> PG[(PostgreSQL + pgvector)]
+
+    Mobile[Expo app + typed API client] --> API[FastAPI modular monolith]
+    API --> PG
+    API --> Queue[(Postgres-backed job/outbox table)]
+    Queue --> FeedWorker[Feed batch worker]
+    FeedWorker --> PG
+```
+
+### 1. Pipeline first: reproducible bilingual data
+
+- Define validated `RawJob` and `CanonicalJob` models with Pydantic.
+- Store source payloads and content hashes in a short-retention staging table.
+- Separate deterministic cleaning from LLM enrichment; call the LLM only when rules cannot classify a field confidently.
+- Make every stage idempotent and version normalization, prompt, and embedding outputs.
+- Record per-source metrics: fetched, rejected, duplicated, enriched, failed, latency, and API cost.
+- Use a Postgres-backed jobs/outbox table initially. Add RabbitMQ or another broker only if database polling becomes a measured bottleneck.
+
+### 2. Backend and APIs: secure, typed, and cheaper requests
+
+- Check in complete database migrations, constraints, indexes, and local seed data.
+- Fail startup when required auth or database configuration is missing.
+- Introduce typed response models and one external-API client layer with consistent timeouts, retries, rate limits, and structured errors.
+- Use pgvector to retrieve a bounded semantic candidate set, then apply business filters and keyword scoring in the API.
+- Move feed-batch generation to a worker when profile changes or a batch expires; continue serving the last valid batch during regeneration.
+- Version the scoring configuration so a stored batch can be traced to the exact algorithm and model versions that created it.
+
+### 3. Matching: evaluate before adding model complexity
+
+- Build a small bilingual relevance set from real French and English job/profile pairs.
+- Track ranking metrics such as Recall@K and nDCG@K, plus eligibility and seniority filter accuracy.
+- Compare keyword-only, embedding-only, hybrid, and reranked configurations.
+- Calibrate or rename the UI score so it is not presented as a probability.
+- Keep the cross-encoder only if measured ranking gains justify its latency and memory cost.
+
+### 4. Mobile and UI: one data contract
+
+- Generate or maintain a typed API client and map backend DTOs in one place.
+- Centralize server state, retries, cache invalidation, and optimistic updates in a query layer.
+- Treat guest-to-account migration and preference updates as explicit domain operations rather than screen-specific storage logic.
+- Add component tests for cards and preference forms, navigation tests for onboarding/auth, and an end-to-end swipe/save/apply flow.
+- Explain ranking with matched skills and preference signals instead of relying only on a percentage.
+
+## Engineering priorities
+
+| Priority | Area | Outcome |
 |---|---|---|
-| **Python** | 3.12 | Runtime |
-| **sentence-transformers** | >=3.0.0 | Batch job embedding generation |
-| **scrapling** | >=0.2.0 | JS-capable web scraping (Rekrute, Stagiaires) |
-| **BeautifulSoup4 + lxml** | >=4.12.0 | HTML parsing |
-| **schedule** | >=1.2.0 | Cron-style scheduler (runs every 12 hours) |
-| **supabase-py** | >=2.10.0 | Database writes |
-| **openai** | >=1.0.0 | OpenRouter-compatible LLM client |
-| **python-dateutil** | >=2.8.0 | Robust date parsing for job listings |
-| **pika** | >=1.3.0 | RabbitMQ client (available, reserved for async queuing) |
+| P0 | Security and schema | Fail-closed auth, reproducible migrations, consistent guest/preference contracts |
+| P1 | Pipeline correctness | Validated schemas, replayable staging data, observable source health, fixed enrichment path |
+| P2 | Matching quality | Bilingual evaluation dataset, measurable ranking changes, pgvector candidate retrieval |
+| P3 | API maintainability | Typed contracts and consistent external-call policies |
+| P4 | Mobile/UI reliability | Centralized server state, failure recovery, tests, explainable match presentation |
 
-### Infrastructure
+Each area should be improved and measured separately. Combining pipeline, ranking, API, and UI rewrites into one change would make regressions difficult to attribute.
 
-| Component | Details |
-|---|---|
-| **VPS** | Hetzner CX33 — 4 vCPU, 8 GB RAM, 80 GB SSD, eu-central |
-| **OS** | Ubuntu 22.04 LTS |
-| **Containerization** | Docker + Docker Compose |
-| **Reverse Proxy** | Caddy 2 (Alpine) — automatic HTTPS via Let's Encrypt ACME |
-| **Deployment** | SSH + `git pull` + `docker compose up -d` |
-| **Logging** | JSON file driver, max 10 MB/file, 3 file rotation |
-| **Model Cache** | Shared named Docker volume `swipeturn-hf-cache` (HuggingFace) |
+## What I learned
 
-### External Services
+- **Normalize before ranking.** A stronger model does not compensate for inconsistent dates, locations, work types, or skill labels.
+- **Multilingual retrieval is more than choosing a multilingual model.** Source parsing, canonical taxonomies, evaluation data, and UI wording matter just as much.
+- **LLMs are best used selectively.** Deterministic rules should handle stable fields; cached LLM calls are most valuable for ambiguous unstructured text.
+- **Stable feeds trade freshness for cost.** Persisting daily results simplified pagination and reduced inference, but introduced invalidation problems.
+- **Operational simplicity has a capacity limit.** One VPS was economical for the MVP, but CPU-bound models should eventually be isolated from latency-sensitive API traffic.
+- **Database schema is part of the application.** Relying on a manually evolved hosted schema made testing, onboarding, and disaster recovery harder.
+- **Ranking scores need evidence.** Model complexity should be justified with bilingual evaluation, not only with plausible formulas.
 
-| Service | Purpose |
-|---|---|
-| **Supabase** | PostgreSQL database (jobs, users, swipes, job_skills), pgvector for embeddings |
-| **Clerk** | User auth — email/password, Google OAuth, JWT tokens. **Currently in development/test mode** (`pk_test_*` key) |
-| **OpenRouter** | LLM gateway used in two places — see model details below |
-| **Adzuna API** | Job listings API (disabled, reserved for post-launch) |
-| **JSearch (RapidAPI)** | LinkedIn/Indeed/Glassdoor aggregator via RapidAPI |
+## Repository structure
 
-**OpenRouter model usage:**
-
-| Where | Primary model | Fallback 1 | Fallback 2 | Notes |
-|---|---|---|---|---|
-| **Pipeline** (`llm_enrichment.py`) | `qwen/qwen3.5-flash-02-23` | `google/gemini-3.1-flash-lite-preview` | `anthropic/claude-haiku-4-5` | Auto-rotates on parse error or API failure; results are cached in `llm_enrichment_cache` Supabase table |
-| **Backend** (`cv_parser.py`) | `google/gemini-2.5-flash` | — | — | Single model, no rotation; failure returns empty skills object |
-
-> **Clerk note:** To go to production, swap `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` from the `pk_test_*` value to your `pk_live_*` key from the Clerk dashboard, and ensure `CLERK_SECRET_KEY` and `CLERK_PEM_KEY` in the backend `.env` also use the live credentials.
-
----
-
-## Repository Structure
-
-```
-SwipeTurn/
-├── frontend/               # Expo React Native app
-│   ├── app/
-│   │   ├── (auth)/         # Login, Signup screens
-│   │   ├── (onboarding)/   # 7-step onboarding flow (geography → preview)
-│   │   ├── (tabs)/         # Main tab screens (swipe, saved, profile, etc.)
-│   │   ├── welcome.tsx     # Landing screen (entry point for new users)
-│   │   ├── job-detail.tsx  # Full job detail view
-│   │   └── update-cv.tsx   # CV upload screen
-│   ├── components/         # Shared UI components (GuestGate, etc.)
-│   ├── constants/          # Colors, fonts, API URL, theme tokens
-│   ├── hooks/              # useBootState, useColorScheme, useAuthHeaders
-│   ├── lib/                # onboarding-storage, local state utilities
-│   ├── store/              # Zustand store (appStore.ts)
-│   ├── utils/              # guestId, cache, tokenCache
-│   ├── app.json            # Expo config (bundle IDs, EAS project ID)
-│   └── eas.json            # EAS build profiles (development/preview/production)
-│
-├── backend/                # FastAPI API server
-│   ├── routers/
-│   │   ├── users.py        # Profile management, CV upload, preferences
-│   │   ├── jobs.py         # Feed generation, job search, scoring
-│   │   ├── swipes.py       # Swipe recording (save/skip/apply)
-│   │   └── public.py       # Public pages (account deletion form)
-│   ├── services/
-│   │   ├── embeddings.py   # User CV embedding generation (e5-small)
-│   │   ├── matching.py     # Hybrid scoring (keyword + semantic + recency)
-│   │   ├── reranker.py     # Cross-encoder reranker (mMiniLM)
-│   │   └── cv_parser.py    # PDF/DOCX extraction + LLM structured parse
-│   ├── main.py             # FastAPI app, CORS, lifespan (model preload)
-│   ├── config.py           # Environment config loader
-│   ├── dependencies.py     # Clerk JWT auth, Supabase client, user fetcher
-│   ├── constants.py        # Domain categories, skill lists
-│   ├── Dockerfile          # Python 3.12-slim container
-│   └── requirements.txt
-│
-├── pipeline/               # Automated job scraping & enrichment worker
-│   ├── sources/
-│   │   ├── rekrute.py      # Moroccan job board scraper
-│   │   ├── stagiaires.py   # Moroccan internship board scraper
-│   │   ├── remotive.py     # Remote tech jobs (API)
-│   │   ├── remoteok.py     # Remote tech jobs (API)
-│   │   ├── weworkremotely.py
-│   │   ├── jsearch.py      # LinkedIn/Indeed/Glassdoor via RapidAPI
-│   │   ├── greenhouse.py   # (disabled — post-launch)
-│   │   ├── lever.py        # (disabled — post-launch)
-│   │   ├── adzuna.py       # (disabled — post-launch)
-│   │   └── jobicy.py       # (disabled — post-launch)
-│   ├── processor.py        # Dedup, LLM enrichment, embedding, DB insert
-│   ├── llm_enrichment.py   # Parallel LLM job classification worker
-│   ├── data_cleaning.py    # Location normalization, HTML stripping, dates
-│   ├── scheduler.py        # Cron runner — fetches all sources every 12h
-│   ├── Dockerfile          # Python 3.12-slim container
-│   └── requirements.txt
-│
-├── docker-compose.yml      # Orchestrates: caddy + api + pipeline
-├── Caddyfile               # Caddy config: api.swipeturn.com + swipeturn.com
-└── .gitignore
+```text
+frontend/               Expo React Native application
+backend/                FastAPI API, matching, CV processing
+pipeline/               Source adapters, enrichment, embeddings, scheduler
+pipeline/migrations/    Checked-in SQL migrations
+docs/images/            Portfolio screenshots used by this README
+docker-compose.yml      API, pipeline worker, and Caddy deployment
+Caddyfile               TLS and reverse-proxy configuration
 ```
 
----
+## Running locally
 
-## AI & Matching Engine
-
-SwipeTurn's feed is powered by a 3-stage matching pipeline:
-
-### Stage 1 — Keyword Scoring (0–100 pts)
-
-Calculated from three dimensions:
-
-| Component | Weight | Logic |
-|---|---|---|
-| Skill overlap | 0–60 pts | `(user_skills ∩ job_skills) / |job_skills|` |
-| Domain match | 0–25 pts | User subcategory → job subcategory match |
-| Job type match | 0–15 pts | full-time / part-time / contract preference |
-
-### Stage 2 — Semantic Scoring (Hybrid)
-
-When a user has uploaded a CV (generating a 384-dim embedding), the score is blended:
-
-```
-semantic_scaled = (cosine_similarity + 1.0) * 50   # maps [-1,1] to [0,100]
-final_score = 0.5 * keyword_score + 0.5 * semantic_scaled
-```
-
-Model: `efederici/multilingual-e5-small-4096` — multilingual, supports English and French job text.
-
-### Stage 3 — Cross-Encoder Reranking
-
-The top-15 candidates are re-ranked using `unicamp-dl/mMiniLM-L6-v2-mmarco-v2`, a multilingual cross-encoder trained on mMARCO (MS MARCO translated to 13 languages). This adds fine-grained relevance scoring before results are returned.
-
-### Recency Bonus
-
-| Age | Bonus |
-|---|---|
-| < 3 days | +2.5 pts |
-| < 7 days | +1.5 pts |
-| < 14 days | +0.5 pts |
-| ≥ 14 days | 0 pts |
-
----
-
-## Job Sources
-
-| Source | Type | Region | Status |
-|---|---|---|---|
-| **Rekrute** | Scraper (scrapling) | Morocco | Active |
-| **Stagiaires.ma** | Scraper (scrapling) | Morocco (internships) | Active |
-| **Remotive** | API | Remote (global) | Active |
-| **WeWorkRemotely** | API | Remote (global) | Active |
-| **RemoteOK** | API | Remote (global) | Active |
-| **JSearch** (RapidAPI) | API — LinkedIn/Indeed | Global | Active |
-| Greenhouse | ATS API | Global | Disabled (post-launch) |
-| Lever | ATS API | Global | Disabled (post-launch) |
-| Adzuna | API | Global | Disabled (post-launch) |
-| Jobicy | API | Remote | Disabled (post-launch) |
-
-The pipeline runs every **12 hours**, processing: age filtering (max 14 days old), fuzzy deduplication (93% title similarity threshold per company), parallel LLM enrichment, batch embedding generation, and Supabase upsert.
-
----
-
-## Environment Variables
-
-### Frontend `.env`
-
-Copy `frontend/.env.example` to `frontend/.env`:
-
-```env
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx
-EXPO_PUBLIC_API_URL=https://api.swipeturn.com
-```
-
-For local development, set `EXPO_PUBLIC_API_URL=http://localhost:8003`.
-
-### Backend `.env`
-
-Copy `backend/.env.example` to `backend/.env`:
-
-```env
-# Supabase
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_KEY=your_supabase_service_role_key
-
-# Clerk
-CLERK_SECRET_KEY=sk_live_xxxx
-CLERK_PEM_KEY=-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----
-
-# AI / LLM
-OPENROUTER_API_KEY=sk-or-xxxx
-
-# CORS (comma-separated)
-ALLOWED_ORIGINS=https://swipeturn.com,https://www.swipeturn.com,https://api.swipeturn.com
-```
-
-> **Note on `CLERK_PEM_KEY`:** In the `.env` file, newlines must be represented as `\n` literal strings. The config loader automatically converts `\\n` → `\n`.
-
-### Pipeline `.env`
-
-Copy `pipeline/.env.example` to `pipeline/.env`:
-
-```env
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_KEY=your_supabase_service_role_key
-
-# Job source API keys
-ADZUNA_APP_ID=your_adzuna_app_id
-ADZUNA_APP_KEY=your_adzuna_app_key
-JSEARCH_API_KEY=your_rapidapi_key
-OPENROUTER_API_KEY=sk-or-xxxx
-
-# Pipeline tuning
-JOB_MAX_AGE_DAYS=14
-LLM_MAX_WORKERS=5
-LLM_TIMEOUT_SEC=45
-LLM_MAX_RETRIES=2
-LLM_DESCRIPTION_MAX_CHARS=6000
-LLM_CACHE_ENABLED=true
-LLM_CACHE_VERSION=1
-LLM_PROGRESS_EVERY_N=10
-```
-
----
-
-## Getting Started — Local Development
-
-### Prerequisites
-
-- **Node.js** ≥ 20 and **Yarn** (for the frontend)
-- **Python** 3.12+ (for backend and pipeline)
-- **Expo Go** app or a physical device with a dev build installed
-- **Docker** + **Docker Compose** (optional — for running services containerized)
-- Accounts: **Supabase**, **Clerk**, **OpenRouter**
-
-### 1. Clone the Repository
+Prerequisites: Python 3.12, Node.js, Yarn, and configured Supabase, Clerk, OpenRouter, and JSearch credentials.
 
 ```bash
-git clone https://github.com/mouaad-here/SwipeTurn.git
-cd SwipeTurn
-```
-
-### 2. Backend Setup
-
-```bash
+# Backend
 cd backend
-
-# Create and activate virtual environment
 python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
+python -m uvicorn main:app --reload --port 8003
 
-# Configure environment
-cp .env.example .env
-# Edit .env and fill in Supabase, Clerk, and OpenRouter credentials
-
-# Run the API server (development)
-python main.py
-# Server starts on http://localhost:8003
-```
-
-The health check endpoint is available at `http://localhost:8003/health`.
-
-> **First launch note:** The backend lazily loads two HuggingFace models on startup (`efederici/multilingual-e5-small-4096` and `unicamp-dl/mMiniLM-L6-v2-mmarco-v2`) in a background thread. They are downloaded to the HuggingFace cache folder on first run (this takes a few minutes). Subsequent restarts use the local cache.
-
-### 3. Pipeline Setup
-
-```bash
+# Pipeline, in another terminal
 cd pipeline
-
 python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-
 pip install -r requirements.txt
-
-cp .env.example .env
-# Edit .env with Supabase service key and API keys
-
-# Run the pipeline once (fetches from all active sources and inserts into DB)
 python run_once.py
 
-# Or start the recurring scheduler (runs every 12 hours automatically)
-python scheduler.py
-```
-
-### 4. Frontend Setup
-
-```bash
+# Mobile app, in another terminal
 cd frontend
-
-# Install dependencies
 yarn install
-
-# Configure environment
-cp .env.example .env
-# Edit .env: set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY and EXPO_PUBLIC_API_URL
-
-# Start the development server
-yarn dev
-# Expo dev server starts on port 8082
-```
-
-Open the app using:
-- **Expo Go** — scan the QR code (limited, SDK version must match)
-- **Development Build** — recommended; see [Mobile App Builds](#mobile-app-builds-eas)
-- **Android Emulator** — `yarn android`
-- **iOS Simulator** — `yarn ios` (macOS only)
-- **Web** — `yarn web` (for quick UI review)
-
-### 5. Running the Full Stack Locally
-
-You can run the backend and pipeline together using Docker Compose for a closer-to-production setup:
-
-```bash
-# From the repo root
-# Ensure backend/.env and pipeline/.env are filled in
-
-docker compose up --build
-```
-
-This starts:
-- `caddy` on ports 80/443 (requires valid domain; for local dev, use the backend directly on 8003)
-- `api` on internal port 8003
-- `pipeline` scheduler
-
-For local dev, skip Caddy and call `http://localhost:8003` directly by setting the frontend's `EXPO_PUBLIC_API_URL=http://localhost:8003`.
-
----
-
-## Production Deployment — Hetzner VPS
-
-### Server Specs
-
-| Property | Value |
-|---|---|
-| Provider | Hetzner Cloud |
-| Plan | CX33 (x86) |
-| vCPU | 4 |
-| RAM | 8 GB |
-| Disk | 80 GB SSD |
-| Region | eu-central (Nuremberg) |
-| OS | Ubuntu 22.04 LTS |
-
-### Initial Server Setup
-
-```bash
-# 1. SSH into the server
-ssh root@<YOUR_SERVER_IP>
-
-# 2. Update system packages
-apt update && apt upgrade -y
-
-# 3. Install Docker
-curl -fsSL https://get.docker.com | bash
-
-# 4. Install Docker Compose plugin
-apt install -y docker-compose-plugin
-
-# 5. Install Git
-apt install -y git
-
-# 6. Clone the repository
-git clone https://github.com/mouaad-here/SwipeTurn.git /opt/swipeturn
-cd /opt/swipeturn
-
-# 7. Create environment files
-cp backend/.env.example backend/.env
-nano backend/.env   # Fill in all values
-
-cp pipeline/.env.example pipeline/.env
-nano pipeline/.env  # Fill in all values
-
-# 8. Build and start all services
-docker compose up -d --build
-```
-
-### Deploying with Docker Compose
-
-The `docker-compose.yml` at the repo root manages three services:
-
-| Service | Container | Role |
-|---|---|---|
-| `caddy` | `swipeturn-proxy` | Reverse proxy, automatic TLS (Let's Encrypt), ports 80/443 |
-| `api` | `swipeturn-api` | FastAPI backend (internal port 8003) |
-| `pipeline` | `swipeturn-pipeline` | 12-hour cron job scheduler |
-
-**Named volumes:**
-- `swipeturn-caddy-data` / `swipeturn-caddy-config` — Caddy TLS certificates and config
-- `swipeturn-hf-cache` — Shared HuggingFace model cache (shared between `api` and `pipeline` to avoid double-downloading models)
-
-The `Caddyfile` configuration:
-
-```
-{
-    email support@swipeturn.com
-}
-
-api.swipeturn.com {
-    encode zstd gzip
-    reverse_proxy api:8003
-}
-
-swipeturn.com, www.swipeturn.com {
-    encode zstd gzip
-    reverse_proxy api:8003
-}
-```
-
-Caddy automatically handles TLS certificate provisioning and renewal via ACME (Let's Encrypt). No manual `certbot` setup is required.
-
-### DNS Configuration
-
-Add the following **A records** at your DNS provider pointing to your Hetzner server's public IP:
-
-| Record | Type | Value |
-|---|---|---|
-| `swipeturn.com` | A | `<HETZNER_SERVER_IP>` |
-| `www.swipeturn.com` | A | `<HETZNER_SERVER_IP>` |
-| `api.swipeturn.com` | A | `<HETZNER_SERVER_IP>` |
-
-Allow up to 24–48 hours for DNS propagation. Caddy will automatically issue TLS certificates once the DNS records resolve correctly.
-
-### Updating the Production Server
-
-To deploy code changes to production:
-
-```bash
-# SSH into the server
-ssh root@<YOUR_SERVER_IP>
-
-cd /opt/swipeturn
-
-# Pull latest changes from GitHub
-git pull origin main
-
-# Rebuild and restart containers
-docker compose up -d --build
-
-# To verify all services are healthy
-docker compose ps
-
-# To check API health
-curl https://api.swipeturn.com/health
-
-# To tail logs from a specific service
-docker compose logs -f api
-docker compose logs -f pipeline
-```
-
-> **Model re-download:** If you update the AI model names in `embeddings.py` or `reranker.py`, the `swipeturn-hf-cache` volume will be populated on the first container start with the new model. This can take 5–15 minutes depending on model size. The API healthcheck has a `start_period: 30s` and 5 retries to accommodate this.
-
----
-
-## Mobile App Builds (EAS)
-
-SwipeTurn uses **Expo Application Services (EAS)** for building and distributing the mobile app. The project is linked to EAS under the account `modo-yo`.
-
-### Prerequisites
-
-```bash
-# Install EAS CLI globally
-npm install -g eas-cli
-
-# Log in to Expo account
-eas login
-
-cd frontend
-```
-
-### Development Build
-
-A development build includes the Expo dev client, enabling hot reload and developer tooling on a physical device.
-
-```bash
-# iOS (requires an Apple Developer account)
-eas build --profile development --platform ios
-
-# Android
-eas build --profile development --platform android
-```
-
-Install the resulting build on your device, then start the dev server:
-
-```bash
 yarn dev
 ```
 
-### Preview Build
+Copy each `.env.example` to `.env` before starting its component. A physical phone must use the development machine's LAN address rather than `localhost` for `EXPO_PUBLIC_API_URL`.
 
-An internal distribution build for testing. Shareable via a direct install link (no App Store required).
+The repository currently contains a small mocked backend test suite. Frontend and pipeline coverage, complete schema migrations, and automated CI remain part of the improvement plan above.
 
-```bash
-eas build --profile preview --platform all
-```
+## License
 
-### Production Build
-
-```bash
-# Build for both platforms
-eas build --profile production --platform all
-
-# Submit to App Store / Play Store
-eas submit --platform ios
-eas submit --platform android
-```
-
-> **Status:** As of June 2025, the app has EAS builds configured but is not yet publicly distributed on the App Store or Play Store.
-
----
-
-## API Reference
-
-The backend API is available at `https://api.swipeturn.com`. A Swagger UI is available at `https://api.swipeturn.com/docs`.
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/health` | None | Health check — returns `{status: "ok", version: "2.0.0"}` |
-| `GET` | `/users/me` | Bearer / Guest | Get current user profile |
-| `PATCH` | `/users/me` | Bearer | Update preferences, target locations, job type |
-| `POST` | `/users/upload-cv` | Bearer | Upload PDF/DOCX CV, triggers parse + embedding |
-| `POST` | `/users/merge-guest` | Bearer | Merge a guest session into authenticated account |
-| `GET` | `/jobs/feed` | Bearer / Guest | Get personalized swipe feed (paginated) |
-| `GET` | `/jobs/search` | Bearer / Guest | Search jobs by query string |
-| `GET` | `/jobs/{job_id}` | None | Get single job details |
-| `POST` | `/swipes/` | Bearer / Guest | Record a swipe (save/skip/apply) |
-| `GET` | `/swipes/saved` | Bearer / Guest | Get saved jobs list |
-| `DELETE` | `/swipes/saved/{job_id}` | Bearer / Guest | Remove from saved list |
-
-**Auth headers:**
-- Authenticated: `Authorization: Bearer <clerk_jwt>`
-- Guest: `X-Guest-Id: <uuid>`
-
----
-
-## Authentication & Guest Mode
-
-SwipeTurn supports two modes:
-
-**Guest Mode** — No sign-up required. A UUID guest ID is generated on first launch and sent via `X-Guest-Id` header. Guest sessions are isolated per app launch (state is wiped on each fresh start). Swipes and preferences are stored server-side under the guest ID.
-
-**Signed-in Mode** — Via Clerk (email/password or Google OAuth). On sign-in, any pending guest session is automatically merged into the authenticated account (`POST /users/merge-guest`). On sign-out, all guest-only local state (onboarding flags, feed cache, guest ID) is cleared via `clearGuestLocalState()`.
-
----
-
-## Design System
-
-The app uses a custom design token system defined in `frontend/constants/colors.ts`.
-
-| Token | Value | Usage |
-|---|---|---|
-| `COLORS.accent` | `#FF4422` | Brand primary, buttons, CTAs |
-| `COLORS.accentSuccess` | `#10B981` | Success states, match score |
-| `COLORS.textPrimary` | `#111827` | Main headings and body |
-| `COLORS.textSecondary` | `#374151` | Subtitles |
-| `COLORS.textMuted` | `#6B7280` | Meta info, placeholders |
-| `COLORS.background` | `#F8F9FA` | Screen backgrounds |
-| `COLORS.surface` | `#FFFFFF` | Cards, modals |
-| `COLORS.border` | `#E5E7EB` | Dividers, input borders |
-
-**Typography:**
-- **ClashDisplay** (Bold, Semibold) — Headings, logo
-- **Satoshi** (Regular, Medium, Bold) — Body text, UI labels
-
----
-
-## Project Conventions
-
-Full conventions are documented in [`.gemini/config/skills/project-conventions/SKILL.md`](.gemini/config/skills/project-conventions/SKILL.md). Key rules:
-
-- **TypeScript everywhere** — `interface` over `type`, strict mode enabled
-- **Functional components only** — no classes
-- **State management** — Zustand for global state, local `useState` only for UI-local state
-- **Styling** — use `COLORS` tokens only; never hardcode hex values in components
-- **Navigation** — use `router.replace()` for auth/onboarding flows (not `push`) to prevent stacking back routes
-- **Safe area** — always use `useSafeAreaInsets()` for padding; never hardcode notch/status bar values
-- **Performance** — `useMemo` / `useCallback` for expensive operations; `expo-image` with caching for all images
-- **Expo managed workflow** — do not introduce bare native dependencies that require manual linking
+Released under the [MIT License](LICENSE). Copyright © 2026 [mouaad-here](https://github.com/mouaad-here/SwipeTurn).
